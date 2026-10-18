@@ -1,0 +1,59 @@
+<view class="container">
+  <view class="stepper"><text class="step active">1 个人信息</text><text class="step">2 报考志愿</text><text class="step">3 核对缴费</text></view>
+  <text class="title">填写报名信息</text>
+  <text class="muted form-tip"><text class="required">*</text> 为必填项，填写内容会自动保存在本机。</text>
+  <text wx:if="{{loading}}" class="muted">正在读取账号信息…</text>
+
+  <view wx:else>
+    <view class="card">
+      <text class="section">身份信息</text>
+      <view class="form-row"><text class="label">姓名<text class="required">*</text></text><input class="form-input" value="{{form.name}}" data-field="name" bindinput="fieldInput" maxlength="40" placeholder="请输入姓名" /></view>
+      <view class="form-row"><text class="label">性别<text class="required">*</text></text>
+        <picker class="form-picker" range="{{genderOptions}}" bindchange="chooseGender">
+          <view class="picker">{{form.gender || '请选择'}}</view>
+        </picker>
+      </view>
+      <view class="form-row"><text class="label">民族<text class="required">*</text></text><input class="form-input" value="{{form.ethnicity}}" data-field="ethnicity" bindinput="fieldInput" maxlength="20" placeholder="例如：汉族" /></view>
+      <view class="form-row"><text class="label">身份证号<text class="required">*</text></text><input class="form-input" value="{{form.idNumber}}" data-field="idNumber" bindinput="fieldInput" maxlength="18" placeholder="请输入18位身份证号" /></view>
+      <text class="muted">身份证号提交后仅显示后四位，证件照片在报名后上传。</text>
+    </view>
+
+    <view class="card">
+      <text class="section">学历与工作</text>
+      <view class="form-row"><text class="label">当前学历<text class="required">*</text></text>
+        <picker class="form-picker" range="{{educationOptions}}" bindchange="chooseEducation">
+          <view class="picker">{{form.education || '请选择'}}</view>
+        </picker>
+      </view>
+      <view class="form-row"><text class="label">工作单位</text><input class="form-input" value="{{form.workUnit}}" data-field="workUnit" bindinput="fieldInput" maxlength="100" placeholder="选填" /></view>
+      <view class="form-row"><text class="label">现居住地址<text class="required">*</text></text><input class="form-input" value="{{form.currentAddress}}" data-field="currentAddress" bindinput="fieldInput" maxlength="160" placeholder="请输入现居住地址" /></view>
+    </view>
+
+    <view class="card">
+      <text class="section">联系与其他信息</text>
+      <view class="form-row"><text class="label">本人手机号<text class="required">*</text></text><input class="form-input" value="{{form.phone}}" data-field="phone" bindinput="fieldInput" type="number" maxlength="11" placeholder="请输入手机号" /></view>
+      <text class="muted">联系微信使用当前已登录的微信账号。</text>
+      <view class="form-row"><text class="label">政治面貌<text class="required">*</text></text>
+        <picker class="form-picker" range="{{politicalOptions}}" bindchange="choosePolitical">
+          <view class="picker">{{form.politicalStatus || '请选择'}}</view>
+        </picker>
+      </view>
+
+      <view class="form-row">
+        <view class="summary-row"><text>工会会员</text>
+          <switch checked="{{form.unionMember}}" bindchange="unionChange" />
+        </view>
+        <!-- <view style="border-bottom: 1rpx solid #edf0f4"></view> -->
+
+        <view class="summary-row"><text>退役军人</text>
+          <switch checked="{{form.veteran}}" bindchange="veteranChange" />
+        </view>
+      </view>
+      <view class="form-row"><text class="label">第二联系人</text><input class="form-input" value="{{form.emergencyName}}" data-field="emergencyName" bindinput="fieldInput" maxlength="40" placeholder="姓名（选填）" /></view>
+      <view class="form-row"><text class="label">联系人电话</text><input class="form-input" value="{{form.emergencyPhone}}" data-field="emergencyPhone" bindinput="fieldInput" type="number" maxlength="11" placeholder="手机号（选填）" /></view>
+    </view>
+
+    <text wx:if="{{error}}" class="error">{{error}}</text>
+    <button class="primary large" bindtap="submit">报考志愿</button>
+  </view>
+</view>

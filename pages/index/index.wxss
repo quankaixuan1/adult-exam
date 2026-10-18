@@ -1,0 +1,61 @@
+/**index.wxss**/
+page {
+  background-color: #f5f7fa;
+}
+
+.container {
+  padding: 40rpx;
+}
+
+.header {
+  margin-top: 80rpx;
+  text-align: center;
+}
+
+.title {
+  display: block;
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #1f2937;
+}
+
+.subtitle {
+  display: block;
+  margin-top: 20rpx;
+  font-size: 26rpx;
+  color: #6b7280;
+}
+
+.welcome {
+  margin-top: 100rpx;
+  text-align: center;
+}
+
+.description {
+  display: block;
+  margin-top: 20rpx;
+  color: #9ca3af;
+}
+
+.menu {
+  margin-top: 80rpx;
+}
+
+.primary-btn {
+  background-color: #2563eb;
+  color: white;
+  margin-bottom: 30rpx;
+}
+
+.secondary-btn {
+  background-color: white;
+  color: #374151;
+  margin-bottom: 30rpx;
+}
+
+.footer {
+  margin-top: 120rpx;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 24rpx;
+}

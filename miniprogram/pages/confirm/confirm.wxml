@@ -1,0 +1,15 @@
+<view class="container">
+  <view class="stepper"><text class="step done">✓ 填写</text><text class="step active">2 核对</text><text class="step">3 缴费</text></view>
+  <text class="title">请核对报名信息</text>
+  <view class="card summary">
+    <view class="summary-row"><text>姓名</text><text>{{draft.name}}</text></view><view class="summary-row"><text>性别与民族</text><text>{{draft.gender}} · {{draft.ethnicity}}</text></view>
+    <view class="summary-row"><text>身份证号</text><text>{{draft.idNumberMasked}}</text></view>
+    <view class="summary-row"><text>手机号码</text><text>{{draft.phone}}</text></view><view class="summary-row"><text>学历</text><text>{{draft.education}}</text></view>
+    <view class="summary-row"><text>现居住地址</text><text>{{draft.currentAddress}}</text></view><view class="summary-row"><text>报考学校</text><text>{{draft.program.school}}</text></view>
+    <view class="summary-row"><text>报考层次</text><text>{{draft.program.level}}</text></view>
+    <view class="summary-row"><text>报考专业</text><text>{{draft.program.major}}</text></view><view class="summary-row"><text>学习形式</text><text>{{draft.program.studyMode}} · {{draft.program.duration}}</text></view>
+  </view>
+  <view class="fee-card"><text>应缴金额</text><text class="price">¥{{draft.program.fee}}</text><text class="muted">请在缴费页面核对费用明细</text></view>
+  <view class="notice">提交后可在“我的账号”继续上传身份证、学历证明和证件照。</view>
+  <text wx:if="{{error}}" class="error">{{error}}</text><button class="primary" bindtap="confirm" loading="{{busy}}" disabled="{{busy}}">确认无误，进入缴费</button><button bindtap="back" disabled="{{busy}}">返回修改</button>
+</view>

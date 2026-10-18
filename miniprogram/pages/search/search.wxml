@@ -1,0 +1,12 @@
+<view class="container">
+  <text class="title">绑定已有考生</text>
+  <view class="card">
+    <text class="section">首次绑定需要身份核验</text>
+    <text class="muted">当前微信已经登录。导入历史考生表格后，可通过姓名、手机号和身份证后六位核验并绑定原档案。</text>
+    <view class="demo-tag">731 人历史档案尚未导入，暂不能提交核验</view>
+  </view>
+  <view class="card">
+    <text class="section">信息保护</text>
+    <text class="muted">系统不会公开显示完整身份证号，也不会仅凭姓名自动认领档案。更换微信需要工作人员再次核验。</text>
+  </view>
+</view>

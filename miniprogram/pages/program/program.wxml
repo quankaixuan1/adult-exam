@@ -1,0 +1,29 @@
+<view class="container">
+  <view class="stepper"><text class="step done">✓ 个人信息</text><text class="step active">2 报考志愿</text><text class="step">3 核对缴费</text></view>
+  <text class="title">选择报考志愿</text>
+  <text class="muted form-tip"><text class="required">*</text> 为必填项，选择内容会自动保存在本机。</text>
+
+  <view class="card">
+    <text class="section">学校与专业</text>
+    <view class="form-row"><text class="label">报考学校<text class="required">*</text></text><picker class="form-picker" range="{{schools}}" bindchange="chooseSchool"><view class="picker">{{school || '请选择学校'}}</view></picker></view>
+    <view class="form-row"><text class="label">报考层次<text class="required">*</text></text><picker class="form-picker" range="{{levels}}" bindchange="chooseLevel" disabled="{{!school}}"><view class="picker {{!school ? 'disabled' : ''}}">{{level || (school ? '请选择报考层次' : '请先选择学校')}}</view></picker></view>
+    <view class="form-row"><text class="label">报考专业<text class="required">*</text></text><picker class="form-picker" range="{{majors}}" range-key="major" bindchange="chooseMajor" disabled="{{!level}}"><view class="picker {{!level ? 'disabled' : ''}}">{{program ? program.major : (level ? '请选择专业' : '请先选择报考层次')}}</view></picker></view>
+
+    <view wx:if="{{program}}" class="program-detail">
+      <view class="summary-row"><text>学制</text><text>{{program.duration}}</text></view>
+      <view class="summary-row"><text>学习形式</text><text>{{program.studyMode}}</text></view>
+      <view class="summary-row"><text>报名费用</text><text>¥{{program.fee}}</text></view>
+    </view>
+  </view>
+
+  <view class="card">
+    <text class="section">报名前请阅读</text>
+    <view class="agreement-link" data-type="registration" bindtap="openAgreement"><text class="agreement-title">报名及费用说明</text><text>查看 ›</text></view>
+    <view class="agreement-link" data-type="adjustment" bindtap="openAgreement"><text class="agreement-title">志愿调整说明</text><text>查看 ›</text></view>
+    <view class="agreement-link" data-type="privacy" bindtap="openAgreement"><text class="agreement-title">隐私与信息使用说明</text><text>查看 ›</text></view>
+    <checkbox-group bindchange="consentChange"><label class="consent-row"><checkbox value="agree" checked="{{consent}}"/>我已阅读并同意以上说明</label></checkbox-group>
+  </view>
+
+  <text wx:if="{{error}}" class="error">{{error}}</text>
+  <button class="primary large" bindtap="submit">核对信息</button>
+</view>

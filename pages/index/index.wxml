@@ -1,0 +1,36 @@
+<!--index.wxml-->
+<view class="container">
+
+<view class="header">
+  <text class="title">成人高考报名系统</text>
+  <text class="subtitle">2026年成人高考报名服务平台</text>
+</view>
+
+<view class="welcome">
+  <text>欢迎使用成人高考报名系统</text>
+  <text class="description">
+    请选择需要办理的业务
+  </text>
+</view>
+
+<view class="menu">
+
+  <button class="primary-btn" bindtap="goRegister">
+    新考生报名
+  </button>
+
+  <button class="secondary-btn" bindtap="goSearch">
+    已报名考生查询
+  </button>
+
+  <button class="secondary-btn" bindtap="goStatus">
+    报名进度查询
+  </button>
+
+</view>
+
+<view class="footer">
+  <text>报名信息请如实填写</text>
+</view>
+
+</view>

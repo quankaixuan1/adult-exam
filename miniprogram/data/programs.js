@@ -1,0 +1,23 @@
+module.exports = [
+  { id: 'hdu-zsb-gs', school: '杭州电子科技大学', level: '专升本', major: '工商管理', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'hdu-zsb-kj', school: '杭州电子科技大学', level: '专升本', major: '会计学', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'hdu-zsb-rl', school: '杭州电子科技大学', level: '专升本', major: '人力资源管理', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'hdu-zsb-sc', school: '杭州电子科技大学', level: '专升本', major: '市场营销', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'hdu-zsb-dz', school: '杭州电子科技大学', level: '专升本', major: '电子商务', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'hdu-zsb-jsj', school: '杭州电子科技大学', level: '专升本', major: '计算机科学与技术', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'hdu-zsb-jx', school: '杭州电子科技大学', level: '专升本', major: '机械设计制造及其自动化', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'hdu-zsb-dzxx', school: '杭州电子科技大学', level: '专升本', major: '电子信息工程', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'hdu-zsb-ai', school: '杭州电子科技大学', level: '专升本', major: '人工智能', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'hdu-zsb-dq', school: '杭州电子科技大学', level: '专升本', major: '电气工程及其自动化', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'hdu-zsb-szmt', school: '杭州电子科技大学', level: '专升本', major: '数字媒体应用技术', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'hdu-zsb-fx', school: '杭州电子科技大学', level: '专升本', major: '法学', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'hdu-gqb-gs', school: '杭州电子科技大学', level: '高起本', major: '工商管理', duration: '5年', studyMode: '非脱产', fee: 680 },
+  { id: 'hdu-gqb-jsj', school: '杭州电子科技大学', level: '高起本', major: '计算机科学与技术', duration: '5年', studyMode: '非脱产', fee: 680 },
+  { id: 'zjtie-gqz-gs', school: '浙江经济职业技术学院', level: '高起专', major: '工商企业管理', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'zjtie-gqz-kj', school: '浙江经济职业技术学院', level: '高起专', major: '大数据与会计', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'zjtie-gqz-sj', school: '浙江经济职业技术学院', level: '高起专', major: '大数据技术', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'zjtie-gqz-dz', school: '浙江经济职业技术学院', level: '高起专', major: '电子商务', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'zjtie-gqz-sc', school: '浙江经济职业技术学院', level: '高起专', major: '市场营销', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'zjtie-gqz-wl', school: '浙江经济职业技术学院', level: '高起专', major: '现代物流管理', duration: '2.5年', studyMode: '非脱产', fee: 600 },
+  { id: 'zjtie-gqz-wlw', school: '浙江经济职业技术学院', level: '高起专', major: '物联网应用技术', duration: '2.5年', studyMode: '非脱产', fee: 600 }
+];

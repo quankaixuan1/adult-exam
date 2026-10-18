@@ -1,0 +1,4 @@
+<view class="container">
+  <text class="title">{{title}}</text>
+  <view class="card"><text class="agreement-body">{{body}}</text></view>
+</view>

@@ -1,0 +1,10 @@
+<view class="container">
+  <view class="hero showcase"><text class="eyebrow">2026 成人高考</text><text class="title">在线报名服务</text>
+  </view>
+  <!-- <view class="process">
+    <view><text class="process-no">01</text><text>微信登录</text></view>
+    <view><text class="process-no">02</text><text>填写志愿</text></view>
+    <view><text class="process-no">03</text><text>核对缴费</text></view>
+  </view> -->
+  <view class="card welcome-card"><text class="section">2026 年招生报名入口</text><text class="muted">请提前准备身份证、学历和本人联系方式，报名信息可暂存后继续填写。</text><button class="primary large" bindtap="goMine">立即登录报名</button></view><button class="quiet" bindtap="goMine">已有账号 · 查看我的报名</button>
+</view>

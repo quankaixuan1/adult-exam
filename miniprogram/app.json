@@ -1,0 +1,21 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/my/my",
+    "pages/register/register",
+    "pages/program/program",
+    "pages/agreement/agreement",
+    "pages/confirm/confirm",
+    "pages/payment/payment",
+    "pages/status/status",
+    "pages/search/search"
+  ],
+  "window": {
+    "navigationBarTitleText": "成人高考报名",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f3f6fb"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

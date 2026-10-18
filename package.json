@@ -1,0 +1,15 @@
+{
+  "name": "adult-exam-registration",
+  "version": "0.2.0",
+  "private": true,
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "start:legacy": "node archive/local-backend/local-server/start.js",
+    "test:legacy": "node --test archive/local-backend/tests/*.test.js"
+  },
+  "dependencies": {
+    "express": "5.1.0"
+  }
+}

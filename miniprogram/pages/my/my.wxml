@@ -1,0 +1,47 @@
+<view class="container">
+  <text class="title">登录报名系统</text>
+  <view class="demo-tag">真实微信身份登录 · 招生数据暂为示例</view>
+  <text wx:if="{{loading}}" class="muted">正在确认登录信息…</text>
+
+  <block wx:elif="{{!student}}">
+    <view class="card login-card">
+      <view class="wechat-mark">微</view>
+      <text class="section center">微信快捷登录</text>
+      <text class="muted center">系统只识别当前微信身份，不读取微信号或密码</text>
+      <button wx:if="{{ready}}" class="primary" bindtap="login" loading="{{busy}}" disabled="{{busy}}">使用当前微信登录</button>
+      <button wx:if="{{demoMode}}" class="primary" bindtap="demoLogin" loading="{{busy}}" disabled="{{busy}}">进入演示账号</button>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view class="card">
+      <text class="section">微信已登录</text>
+      <text class="muted">学生账号：{{student.accountNo}}</text>
+      <text class="muted">该账号已与当前微信身份关联</text>
+    </view>
+
+    <view wx:if="{{registration}}" class="card">
+      <text class="status">{{registration.statusText}}</text>
+      <text class="label">姓名</text><text>{{registration.name}}</text>
+      <text class="label">联系电话</text><text>{{registration.phone}}</text>
+      <text class="label">报考学校</text><text>{{registration.school || '待补充'}}</text>
+      <text class="label">层次与专业</text><text>{{registration.level}} · {{registration.major}}</text>
+      <text class="muted">提交时间：{{registration.createdAt}}</text>
+      <button class="primary" bindtap="edit" disabled="{{busy}}">修改报名资料</button>
+    </view>
+
+    <view wx:else class="card">
+      <text class="section">选择办理方式</text>
+      <text class="muted">新考生可直接填写报名信息；已在机构登记的考生可进入身份核验。</text>
+      <button class="primary" bindtap="register">新考生填写报名信息</button>
+      <button bindtap="verification">绑定已有考生档案</button>
+    </view>
+
+    <view class="card">
+      <button bindtap="logout" loading="{{busy}}" disabled="{{busy}}">退出当前登录</button>
+    </view>
+  </block>
+
+  <text wx:if="{{error}}" class="error">{{error}}</text>
+  <button wx:if="{{error && !loading}}" bindtap="load">重新加载</button>
+</view>

@@ -1,0 +1,385 @@
+page {
+  background: #f3f6fb;
+  color: #182b45;
+  font-size: 30rpx
+}
+
+.container {
+  padding: 40rpx 32rpx 80rpx
+}
+
+.hero {
+  padding: 48rpx 8rpx
+}
+
+.eyebrow {
+  color: #2764ce;
+  font-size: 24rpx;
+  letter-spacing: 4rpx
+}
+
+.title {
+  display: block;
+  font-size: 48rpx;
+  font-weight: 700;
+  margin: 20rpx 0
+}
+
+.subtitle,
+.muted {
+  display: block;
+  color: #63738a;
+  font-size: 26rpx;
+  line-height: 1.8
+}
+
+.card {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 32rpx;
+  margin-bottom: 24rpx
+}
+
+.section {
+  display: block;
+  font-size: 34rpx;
+  font-weight: 600;
+  margin-bottom: 18rpx
+}
+
+button {
+  margin-top: 24rpx;
+  font-size: 30rpx;
+  border-radius: 16rpx
+}
+
+button.primary {
+  display: flex;
+  justify-content: center; /* 水平居中 */
+  align-items: center;     /* 垂直居中 */
+  text-align: center;
+  background: #245fd4;
+  color: #fff
+}
+
+button::after {
+  border: 0
+}
+
+.label {
+  display: block;
+  margin: 26rpx 0 14rpx;
+  font-size: 28rpx
+}
+
+.required {
+  color: #d93025;
+  margin-left: 6rpx
+}
+
+.form-tip {
+  margin-bottom: 24rpx
+}
+
+.agreement-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid #edf0f4;
+  color: #245fd4
+}
+
+.agreement-link:last-child {
+  border-bottom: 0
+}
+
+.agreement-title {
+  color: #182b45
+}
+
+.agreement-body {
+  white-space: pre-wrap;
+  line-height: 1.9;
+  color: #3d4f66
+}
+
+input,
+.picker {
+  background: #f3f6fb;
+  border-radius: 12rpx;
+  padding: 24rpx;
+  font-size: 28rpx
+}
+
+.notice {
+  color: #76602d;
+  background: #fff5dc;
+  padding: 24rpx;
+  border-radius: 16rpx;
+  font-size: 25rpx;
+  line-height: 1.7;
+  margin-bottom: 24rpx
+}
+
+.error {
+  color: #b3261e;
+  font-size: 26rpx;
+  line-height: 1.6;
+  margin: 18rpx 0;
+  display: block
+}
+
+.token {
+  word-break: break-all;
+  font-family: monospace;
+  font-size: 26rpx;
+  line-height: 1.7
+}
+
+.status {
+  color: #245fd4;
+  font-size: 40rpx;
+  font-weight: 600
+}
+
+button.quiet {
+  background: transparent;
+  color: #63738a;
+  white-space: nowrap; 
+  text-align: center;   /* 文字居中 */
+  font-size: 24rpx
+}
+
+checkbox-group {
+  margin-top: 24rpx;
+  line-height: 1.8;
+  font-size: 26rpx
+}
+
+.demo-tag {
+  display: block;
+  background: #fff0cc;
+  color: #8a5a00;
+  padding: 18rpx 22rpx;
+  border-radius: 14rpx;
+  font-size: 24rpx;
+  margin-bottom: 24rpx
+}
+
+.center {
+  text-align: center
+}
+
+.login-card {
+  padding: 48rpx 36rpx
+}
+
+.wechat-mark {
+  margin: 0 auto 24rpx;
+  width: 96rpx;
+  height: 96rpx;
+  line-height: 96rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: #07c160;
+  color: #fff;
+  font-weight: 700;
+  font-size: 40rpx
+}
+
+.demo-note {
+  display: block;
+  color: #8a6d3b;
+  font-size: 24rpx;
+  text-align: center;
+  margin-top: 22rpx
+}
+
+.stepper {
+  display: flex;
+  justify-content: space-between;
+  margin: 10rpx 0 36rpx
+}
+
+.step {
+  color: #9aa6b5;
+  font-size: 24rpx
+}
+
+.step.active {
+  color: #245fd4;
+  font-weight: 700
+}
+
+.step.done {
+  color: #13a567
+}
+
+.program-info {
+  display: flex;
+  justify-content: space-between;
+  background: #edf4ff;
+  color: #245083;
+  padding: 22rpx;
+  border-radius: 12rpx;
+  margin-top: 18rpx;
+  font-size: 25rpx
+}
+
+.disabled {
+  color: #aeb7c2
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 32rpx;
+  padding: 22rpx 0;
+  /* border-bottom: 1rpx solid #edf0f4 */
+}
+
+.summary-row text:first-child {
+  color: #718096;
+  flex-shrink: 0
+}
+
+.summary-row text:last-child {
+  text-align: right
+}
+
+.fee-card {
+  background: linear-gradient(135deg, #245fd4, #173f98);
+  color: #fff;
+  border-radius: 24rpx;
+  padding: 34rpx;
+  margin-bottom: 24rpx
+}
+
+.price {
+  display: block;
+  font-size: 56rpx;
+  font-weight: 700;
+  margin: 12rpx 0
+}
+
+.fee-card .muted {
+  color: #dbe7ff
+}
+
+.pay-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1rpx solid #edf0f4;
+  margin-top: 28rpx;
+  padding-top: 24rpx
+}
+
+.pay-line .price {
+  font-size: 44rpx;
+  color: #d43d2f
+}
+
+.pay-method {
+  display: flex;
+  align-items: center;
+  gap: 22rpx
+}
+
+.wechat-pay {
+  width: 64rpx;
+  height: 64rpx;
+  line-height: 64rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: #07c160;
+  color: #fff
+}
+
+.small {
+  font-size: 30rpx;
+  margin: 0
+}
+
+.selected {
+  margin-left: auto;
+  color: #07c160
+}
+
+.success-card {
+  background: #fff;
+  padding: 64rpx 36rpx;
+  border-radius: 28rpx;
+  margin-top: 80rpx
+}
+
+.success-icon {
+  margin: 0 auto;
+  width: 110rpx;
+  height: 110rpx;
+  line-height: 110rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: #e8faef;
+  color: #07a947;
+  font-size: 56rpx
+}
+
+.showcase {
+  background: linear-gradient(145deg, #173f98, #3278ea);
+  color: #fff;
+  border-radius: 32rpx;
+  padding: 48rpx 36rpx;
+  margin-bottom: 24rpx
+}
+
+.showcase .eyebrow,
+.showcase .subtitle {
+  color: #dbe7ff
+}
+
+.showcase .title {
+  color: #fff
+}
+
+.hero-badge {
+  display: inline-block;
+  background: rgba(255, 255, 255, .16);
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  font-size: 23rpx;
+  margin-top: 26rpx
+}
+
+.process {
+  display: flex;
+  justify-content: space-between;
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 26rpx 22rpx;
+  margin-bottom: 24rpx;
+  font-size: 24rpx
+}
+
+.process view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8rpx
+}
+
+.process-no {
+  color: #245fd4;
+  font-weight: 700
+}
+
+.large {
+  height: 96rpx;
+  line-height: 96rpx
+}
+
+.welcome-card {
+  padding-top: 40rpx
+}

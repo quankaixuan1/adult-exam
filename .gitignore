@@ -1,0 +1,14 @@
+node_modules/
+admin/dist/
+.private/
+*.db
+*.db-*
+*.sqlite*
+*.xlsx
+*.xls
+*.csv
+.env*
+!.env.example
+project.private.config.json
+.DS_Store
+backups/

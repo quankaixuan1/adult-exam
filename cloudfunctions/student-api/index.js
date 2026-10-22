@@ -1,8 +1,17 @@
 const cloud = require('wx-server-sdk');
+const { validateIdNumber } = require('./id-number');
 const { createHash, randomBytes, createCipheriv } = require('crypto');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
+
+const materialKinds = {
+  idFront: { label: '身份证人像面', extensions: ['jpg', 'jpeg', 'png'] },
+  idBack: { label: '身份证国徽面', extensions: ['jpg', 'jpeg', 'png'] },
+  education: { label: '学历材料', extensions: ['pdf', 'jpg', 'jpeg', 'png'] },
+  photo: { label: '证件电子照片', extensions: ['jpg', 'jpeg', 'png'] }
+};
+const MAX_MATERIAL_SIZE = 10 * 1024 * 1024;
 
 const programs = [
   { id: 'hdu-zsb-gs', school: '杭州电子科技大学', level: '专升本', major: '工商管理', duration: '2.5年', studyMode: '非脱产', fee: 600 },
@@ -62,9 +71,17 @@ const publicRegistration = value => value ? {
   studyMode: value.studyMode,
   fee: value.fee,
   status: value.status,
+  reviewRemark: value.reviewRemark || '',
   revision: value.revision,
   createdAt: value.createdAt,
-  updatedAt: value.updatedAt
+  updatedAt: value.updatedAt,
+  materials: Object.fromEntries(Object.entries(value.materials || {}).map(([kind, item]) => [kind, {
+    fileId: item.fileId,
+    fileName: item.fileName,
+    size: item.size,
+    status: item.status || 'pending',
+    uploadedAt: item.uploadedAt
+  }]))
 } : null;
 
 function text(value, max) {
@@ -97,7 +114,9 @@ function validateRegistration(data, currentName) {
   const politicalStatus = text(data.politicalStatus, 20);
   const emergencyName = text(data.emergencyName, 40);
   const emergencyPhone = text(data.emergencyPhone, 11);
-  if (!name || !['男', '女'].includes(gender) || !ethnicity || !/^\d{17}[0-9X]$/.test(idNumber)) throw new ApiError('请完整填写有效的身份信息', 'INVALID_INPUT');
+  const idError = validateIdNumber(idNumber);
+  if (idError) throw new ApiError(idError, 'INVALID_INPUT');
+  if (!name || !['男', '女'].includes(gender) || !ethnicity) throw new ApiError('请完整填写有效的身份信息', 'INVALID_INPUT');
   if (!/^1[3-9]\d{9}$/.test(phone)) throw new ApiError('请填写有效的本人手机号', 'INVALID_INPUT');
   if ((emergencyName || emergencyPhone) && (!emergencyName || !/^1[3-9]\d{9}$/.test(emergencyPhone))) throw new ApiError('第二联系人如填写，请同时填写姓名和有效手机号', 'INVALID_INPUT');
   if (!education || !currentAddress || !politicalStatus) throw new ApiError('请完整填写学历、现居住地址和政治面貌', 'INVALID_INPUT');
@@ -154,6 +173,45 @@ async function audit(studentId, action, details = {}) {
   }
 }
 
+async function prepareMaterialUpload(student, data) {
+  const registration = await findRegistration(student._id);
+  if (!registration) throw new ApiError('请先提交报名信息，再上传报名材料', 'REGISTRATION_REQUIRED');
+  const kind = text(data.kind, 20);
+  const definition = materialKinds[kind];
+  const extension = text(data.extension, 10).toLowerCase().replace(/^\./, '');
+  if (!definition || !definition.extensions.includes(extension)) throw new ApiError('文件类型不支持', 'INVALID_INPUT');
+  const cloudPath = `student-materials/${student._id}/${kind}/${Date.now()}-${randomBytes(12).toString('hex')}.${extension}`;
+  return { cloudPath, maxSize: MAX_MATERIAL_SIZE };
+}
+
+async function saveMaterial(student, data) {
+  const registration = await findRegistration(student._id);
+  if (!registration) throw new ApiError('请先提交报名信息，再上传报名材料', 'REGISTRATION_REQUIRED');
+  const kind = text(data.kind, 20);
+  const definition = materialKinds[kind];
+  const fileId = text(data.fileId, 600);
+  const fileName = text(data.fileName, 120);
+  const size = Number(data.size);
+  const expectedPath = `/student-materials/${student._id}/${kind}/`;
+  if (!definition || !fileId || !fileId.includes(expectedPath)) throw new ApiError('上传文件路径无效', 'INVALID_INPUT');
+  if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_MATERIAL_SIZE) throw new ApiError('文件大小不能超过10MB', 'INVALID_INPUT');
+  const uploadedAt = isoNow();
+  const previous = registration.materials && registration.materials[kind];
+  const material = { fileId, fileName: fileName || definition.label, size, status: 'pending', uploadedAt };
+  await db.collection('registrations').doc(student._id).update({
+    data: {
+      materials: { ...(registration.materials || {}), [kind]: material },
+      materialsUpdatedAt: uploadedAt,
+      updatedAt: uploadedAt
+    }
+  });
+  if (previous && previous.fileId && previous.fileId !== fileId) {
+    try { await cloud.deleteFile({ fileList: [previous.fileId] }); } catch (error) { console.error('old material cleanup failed', error.errCode || error.message); }
+  }
+  await audit(student._id, 'material_uploaded', { kind, size });
+  return { material: { kind, ...material } };
+}
+
 async function login(openId) {
   let student = await findStudent(openId);
   if (!student) {
@@ -182,6 +240,13 @@ async function handle(action, data, openId) {
   const student = await requireStudent(openId);
   if (action === 'me') return { student: publicStudent(student) };
   if (action === 'mine') return { registration: publicRegistration(await findRegistration(student._id)) };
+  if (action === 'materials') {
+    if (data.operation === 'prepare') return prepareMaterialUpload(student, data);
+    if (data.operation === 'save') return saveMaterial(student, data);
+    throw new ApiError('材料操作不存在', 'NOT_FOUND');
+  }
+  if (action === 'prepareMaterialUpload') return prepareMaterialUpload(student, data);
+  if (action === 'saveMaterial') return saveMaterial(student, data);
   if (action === 'logout') {
     await audit(student._id, 'logout');
     return { ok: true };

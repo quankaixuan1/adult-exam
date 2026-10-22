@@ -11,7 +11,7 @@
 
     <view wx:if="{{program}}" class="program-detail">
       <view class="summary-row"><text>学制</text><text>{{program.duration}}</text></view>
-      <view class="summary-row"><text>学习形式</text><text>{{program.studyMode}}</text></view>
+      <!-- <view class="summary-row"><text>学习形式</text><text>{{program.studyMode}}</text></view> -->
       <view class="summary-row"><text>报名费用</text><text>¥{{program.fee}}</text></view>
     </view>
   </view>

@@ -70,10 +70,16 @@ Page({
     }
   },
   present(value) {
-    return value ? {
+    if (!value) return null;
+    const materials = value.materials || {};
+    return {
       ...value,
+      materials,
+      initial: String(value.name || '微').slice(0, 1),
+      materialsCompleted: ['idFront', 'idBack', 'education', 'photo'].filter(kind => materials[kind] && materials[kind].fileId).length,
+      materialsPercent: ['idFront', 'idBack', 'education', 'photo'].filter(kind => materials[kind] && materials[kind].fileId).length * 25,
       statusText: statusText[value.status] || '处理中'
-    } : null;
+    };
   },
   async login() {
     if (this.data.busy || this.data.loading) return;
@@ -157,6 +163,9 @@ Page({
     wx.navigateTo({
       url: '/pages/register/register?mode=edit'
     });
+  },
+  materials() {
+    wx.navigateTo({ url: '/pages/materials/materials' });
   },
   verification() {
     wx.navigateTo({

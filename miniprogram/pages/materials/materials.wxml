@@ -1,0 +1,63 @@
+<view class="container">
+  <text class="title">报名材料</text>
+  <text class="muted">材料仅用于报名核验。单个文件不超过10MB，重新上传会替换原文件。</text>
+
+  <view wx:if="{{loading}}" class="card"><text class="muted">正在读取材料…</text></view>
+  <block wx:else>
+    <view class="progress-card">
+      <view><text class="progress-title">材料完成度</text><text class="muted">已上传 {{completed}} / 4 项</text></view>
+      <text class="progress-number">{{completed}}/4</text>
+    </view>
+
+    <view class="card material-card">
+      <view class="material-heading">
+        <view class="material-icon">证</view>
+        <view><text class="section">身份证</text><text class="muted">请分别上传清晰的正反面照片</text></view>
+      </view>
+      <view class="upload-row {{materials.idFront ? 'uploaded-row' : ''}}">
+        <view>
+          <text>身份证人像面</text><text class="file-state">{{materials.idFront ? '已上传 · 待审核' : '未上传'}}</text>
+        </view>
+        <view class="row-actions">
+          <button wx:if="{{materials.idFront}}" class="mini quiet-action" data-kind="idFront" bindtap="preview">查看</button>
+          <button class="mini" data-kind="idFront" bindtap="chooseImage" loading="{{busyKind === 'idFront'}}">{{materials.idFront ? '替换' : '上传'}}</button>
+        </view>
+      </view>
+      <view class="upload-row {{materials.idBack ? 'uploaded-row' : ''}}">
+        <view>
+          <text>身份证国徽面</text><text class="file-state">{{materials.idBack ? '已上传 · 待审核' : '未上传'}}</text>
+        </view>
+        <view class="row-actions">
+          <button wx:if="{{materials.idBack}}" class="mini quiet-action" data-kind="idBack" bindtap="preview">查看</button>
+          <button class="mini" data-kind="idBack" bindtap="chooseImage" loading="{{busyKind === 'idBack'}}">{{materials.idBack ? '替换' : '上传'}}</button>
+        </view>
+      </view>
+    </view>
+
+    <view class="card material-card">
+      <view class="material-heading">
+        <view class="material-icon blue">学</view>
+        <view><text class="section">学历证明</text><text class="muted">学信网学历备案表或毕业证复印件</text></view>
+
+      </view>
+      <view wx:if="{{materials.education}}" class="uploaded-file" data-kind="education" bindtap="preview"><text>{{materials.education.fileName}}</text><text>查看 ›</text></view>
+      <view class="dual-actions"><button bindtap="chooseEducationImage" loading="{{busyKind === 'education'}}">拍照或相册</button><button bindtap="chooseEducationFile" loading="{{busyKind === 'education'}}">选择PDF</button></view>
+    </view>
+
+    <view class="card material-card">
+      <view class="material-heading">
+        <view class="material-icon green">照</view>
+        <view><text class="section">证件电子照片</text><text class="muted">请上传近期、正面、清晰的免冠照片</text></view>
+      </view>
+      <view class="upload-row no-border {{materials.photo ? 'uploaded-row' : ''}}">
+        <view>
+          <text>{{materials.photo ? materials.photo.fileName : 'JPG 或 PNG 格式'}}</text>
+          <text class="file-state">{{materials.photo ? '已上传 · 待审核' : '未上传'}}</text>
+        </view>
+        <view class="row-actions"><button wx:if="{{materials.photo}}" class="mini quiet-action" data-kind="photo" bindtap="preview">查看</button><button class="mini" data-kind="photo" bindtap="chooseImage" loading="{{busyKind === 'photo'}}">{{materials.photo ? '替换' : '上传'}}</button></view>
+      </view>
+    </view>
+  </block>
+
+  <text wx:if="{{error}}" class="error">{{error}}</text>
+</view>

@@ -1,0 +1,76 @@
+.progress-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 28rpx 0 24rpx;
+  padding: 30rpx 32rpx;
+  border-radius: 24rpx;
+  background: linear-gradient(135deg, #245fd4, #173f98);
+  color: #fff;
+}
+.progress-title { display: block; margin-bottom: 8rpx; font-size: 30rpx; font-weight: 700; }
+.progress-card .muted { color: #dbe7ff; }
+.progress-number { font-size: 44rpx; font-weight: 700; }
+.material-heading { display: flex; align-items: center; gap: 22rpx; padding-bottom: 20rpx; }
+.material-heading .section { margin: 0 0 4rpx; }
+.material-icon { width: 72rpx; height: 72rpx; line-height: 72rpx; border-radius: 18rpx; text-align: center; background: #fff0e6; color: #c65c17; font-weight: 700; }
+.material-icon.blue { background: #e8f0ff; color: #245fd4; }
+.material-icon.green { background: #e7f8ee; color: #138848; }
+.upload-row { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; padding: 24rpx 0; border-top: 1rpx solid #edf0f4; }
+.upload-row.no-border { border-top: 0; }
+.file-state { display: block; margin-top: 8rpx; color: #718096; font-size: 24rpx; }
+.row-actions { display: flex; flex-shrink: 0; gap: 10rpx; }
+button.mini { min-width: 112rpx; margin: 0; padding: 0 20rpx; height: 64rpx; line-height: 64rpx; background: #245fd4; color: #fff; font-size: 25rpx; }
+button.quiet-action { background: #eef3fb; color: #245fd4; }
+.dual-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16rpx;
+  width: 100%;
+}
+.dual-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  height: 76rpx;
+  margin: 8rpx 0 0;
+  padding: 0 12rpx;
+  box-sizing: border-box;
+  color: #245fd4;
+  background: #eef3fb;
+  font-size: 26rpx;
+  line-height: 1.25;
+  white-space: normal;
+}
+.uploaded-file { display: flex; justify-content: space-between; gap: 20rpx; margin: 8rpx 0 16rpx; padding: 22rpx; border-radius: 14rpx; background: #f3f6fb; color: #245fd4; font-size: 25rpx; }
+.uploaded-file text:first-child { min-width: 0; white-space: normal; word-break: break-all; color: #3d4f66; }
+
+/* 文件名完整换行显示，上传后的操作按钮另起一行。 */
+.upload-row > view:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.upload-row > view:first-child > text:first-child {
+  display: block;
+  white-space: normal;
+  word-break: break-all;
+}
+.material-icon { flex-shrink: 0; }
+.material-heading > view:last-child { flex: 1; min-width: 0; }
+.uploaded-file > text:last-child { flex-shrink: 0; }
+
+.upload-row.uploaded-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+.uploaded-row .row-actions {
+  justify-content: flex-end;
+}
+.uploaded-file {
+  flex-direction: column;
+}
+.uploaded-file > text:last-child {
+  align-self: flex-end;
+}

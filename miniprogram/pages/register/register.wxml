@@ -14,7 +14,8 @@
         </picker>
       </view>
       <view class="form-row"><text class="label">民族<text class="required">*</text></text><input class="form-input" value="{{form.ethnicity}}" data-field="ethnicity" bindinput="fieldInput" maxlength="20" placeholder="例如：汉族" /></view>
-      <view class="form-row"><text class="label">身份证号<text class="required">*</text></text><input class="form-input" value="{{form.idNumber}}" data-field="idNumber" bindinput="fieldInput" maxlength="18" placeholder="请输入18位身份证号" /></view>
+      <view class="form-row"><text class="label">身份证号<text class="required">*</text></text><input class="form-input" value="{{form.idNumber}}" data-field="idNumber" bindinput="fieldInput" bindblur="checkIdNumber" maxlength="18" placeholder="请输入18位身份证号" /></view>
+      <text wx:if="{{idNumberChecked}}" class="{{idNumberError ? 'error' : 'id-valid'}}">{{idNumberError || '号码规则校验通过'}}</text>
       <text class="muted">身份证号提交后仅显示后四位，证件照片在报名后上传。</text>
     </view>
 

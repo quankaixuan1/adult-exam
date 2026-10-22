@@ -34,3 +34,5 @@
 .form-row:last-child {
   margin-bottom: 0;
 }
+
+.id-valid { display: block; color: #148347; font-size: 26rpx; margin: 12rpx 0; }

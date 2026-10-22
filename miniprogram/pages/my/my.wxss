@@ -1,1 +1,36 @@
-
+.account-page { padding-top: 48rpx; }
+.loading-text { margin-top: 28rpx; }
+.account-hero {
+  display: flex;
+  align-items: center;
+  gap: 22rpx;
+  margin-bottom: 28rpx;
+  padding: 34rpx 30rpx;
+  border-radius: 26rpx;
+  background: linear-gradient(145deg, #173f98, #3278ea);
+  color: #fff;
+}
+.account-avatar { width: 88rpx; height: 88rpx; line-height: 88rpx; flex-shrink: 0; border-radius: 50%; text-align: center; background: rgba(255,255,255,.18); font-size: 38rpx; font-weight: 700; }
+.account-main { min-width: 0; flex: 1; }
+.account-name { display: block; margin-bottom: 8rpx; font-size: 34rpx; font-weight: 700; }
+.account-no { display: block; color: #dbe7ff; font-size: 23rpx; overflow: hidden; text-overflow: ellipsis; }
+.bound-badge { flex-shrink: 0; padding: 9rpx 14rpx; border-radius: 999rpx; background: rgba(255,255,255,.16); font-size: 21rpx; }
+.card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20rpx; }
+.card-heading .section { margin-bottom: 8rpx; }
+.status-chip { flex-shrink: 0; padding: 9rpx 15rpx; border-radius: 999rpx; font-size: 22rpx; font-weight: 700; }
+.status-chip.pending { color: #9b6500; background: #fff2cf; }
+.status-chip.approved { color: #15753a; background: #def5e7; }
+.status-chip.rejected { color: #ac3030; background: #ffe3e3; }
+.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24rpx 18rpx; margin: 30rpx 0; }
+.info-grid view text:first-child { display: block; margin-bottom: 8rpx; color: #718096; font-size: 23rpx; }
+.info-grid view text:last-child { display: block; font-size: 26rpx; word-break: break-all; }
+.outline-button { margin: 0; color: #245fd4; background: #eef3fb; }
+.material-entry { display: flex; align-items: center; gap: 22rpx; }
+.entry-icon { width: 76rpx; height: 76rpx; line-height: 76rpx; flex-shrink: 0; border-radius: 20rpx; text-align: center; background: #e8f0ff; color: #245fd4; font-weight: 700; }
+.entry-content { min-width: 0; flex: 1; }
+.entry-content .section { margin-bottom: 4rpx; }
+.entry-progress { height: 10rpx; margin: 18rpx 0 8rpx; overflow: hidden; border-radius: 999rpx; background: #e8edf5; }
+.entry-progress view { height: 100%; border-radius: 999rpx; background: #245fd4; }
+.progress-text { color: #718096; font-size: 22rpx; }
+.entry-arrow { color: #9ba8ba; font-size: 48rpx; }
+.logout-button { margin-top: 36rpx; color: #63738a; background: transparent; }

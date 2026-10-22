@@ -2,6 +2,7 @@
   "pages": [
     "pages/index/index",
     "pages/my/my",
+    "pages/materials/materials",
     "pages/register/register",
     "pages/program/program",
     "pages/agreement/agreement",

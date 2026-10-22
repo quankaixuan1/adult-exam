@@ -25,9 +25,9 @@ function validPassword(password) {
   return typeof password === 'string' && password.length >= 10 && password.length <= 128;
 }
 
-async function adminDocument() {
+async function adminDocument(id = 'primary') {
   try {
-    return (await db.collection('admins').doc('primary').get()).data || null;
+    return (await db.collection('admins').doc(id).get()).data || null;
   } catch (error) {
     if (/not exist|DOCUMENT_NOT_FOUND/i.test(error.errMsg || error.message || '')) return null;
     throw error;
@@ -41,11 +41,12 @@ async function createSession(admin) {
     data: {
       _id: digest(`admin-session:${token}`),
       adminId: admin._id,
+      sessionVersion: admin.sessionVersion || 0,
       expiresAt,
       createdAt: isoNow()
     }
   });
-  return { token, expiresAt, admin: { username: admin.username, displayName: admin.displayName } };
+  return { token, expiresAt, admin: publicAdmin(admin) };
 }
 
 async function authenticate(token) {
@@ -57,8 +58,8 @@ async function authenticate(token) {
     throw new ApiError('管理员登录已失效，请重新登录', 'LOGIN_REQUIRED');
   }
   if (!session || Date.parse(session.expiresAt) <= Date.now()) throw new ApiError('管理员登录已过期，请重新登录', 'LOGIN_REQUIRED');
-  const admin = await adminDocument();
-  if (!admin || admin._id !== session.adminId || admin.disabled === true) throw new ApiError('管理员账号不可用', 'LOGIN_REQUIRED');
+  const admin = await adminDocument(session.adminId);
+  if (!admin || (admin.sessionVersion || 0) !== (session.sessionVersion || 0) || admin._id !== session.adminId || admin.disabled === true) throw new ApiError('管理员账号不可用', 'LOGIN_REQUIRED');
   return admin;
 }
 
@@ -93,9 +94,10 @@ async function bootstrap(data) {
 }
 
 async function login(data) {
-  const admin = await adminDocument();
-  if (!admin || admin.disabled === true) throw new ApiError('账号或密码错误', 'INVALID_CREDENTIALS');
   const username = normalizeUsername(data.username);
+  const primary = await adminDocument();
+  const admin = primary && primary.username === username ? primary : await adminDocument(digest(`admin:${username}`));
+  if (!admin || admin.disabled === true) throw new ApiError('账号或密码错误', 'INVALID_CREDENTIALS');
   const candidate = validPassword(data.password) ? passwordDigest(data.password, admin.passwordSalt) : '0'.repeat(128);
   const stored = Buffer.from(admin.passwordHash, 'hex');
   const supplied = Buffer.from(candidate, 'hex');
@@ -105,23 +107,59 @@ async function login(data) {
   return createSession(admin);
 }
 
-async function dashboard(admin, data) {
-  const status = ['pending', 'approved', 'rejected'].includes(data.status) ? data.status : '';
-  const page = Number.isSafeInteger(data.page) && data.page > 0 ? data.page : 1;
-  const pageSize = 30;
-  const collection = db.collection('registrations');
-  const query = status ? collection.where({ status }) : collection;
-  const [total, pending, approved, rejected, rows] = await Promise.all([
-    collection.count(),
-    collection.where({ status: 'pending' }).count(),
-    collection.where({ status: 'approved' }).count(),
-    collection.where({ status: 'rejected' }).count(),
-    query.orderBy('updatedAt', 'desc').skip((page - 1) * pageSize).limit(pageSize).get()
-  ]);
-  return {
-    admin: { username: admin.username, displayName: admin.displayName },
-    stats: { total: total.total, pending: pending.total, approved: approved.total, rejected: rejected.total },
-    registrations: rows.data.map(item => ({
+const permissionOptions = ['registrations.view', 'registrations.review', 'materials.view'];
+const isSuper = admin => admin._id === 'primary';
+function publicAdmin(admin) {
+  return { id: admin._id, username: admin.username, displayName: admin.displayName, role: isSuper(admin) ? 'super' : 'staff', permissions: isSuper(admin) ? permissionOptions : admin.permissions || [], schools: admin.schools || [], classIds: admin.classIds || [], disabled: admin.disabled === true };
+}
+function requirePermission(admin, permission) {
+  if (!isSuper(admin) && !(admin.permissions || []).includes(permission)) throw new ApiError('没有该操作权限', 'FORBIDDEN');
+}
+function requireSuper(admin) {
+  if (!isSuper(admin)) throw new ApiError('仅主管理员可以管理账号权限', 'FORBIDDEN');
+}
+function scope(admin) {
+  if (isSuper(admin)) return {};
+  const rules = [];
+  if ((admin.schools || []).length) rules.push({ school: command.in(admin.schools) });
+  if ((admin.classIds || []).length) rules.push({ classId: command.in(admin.classIds) });
+  return rules.length ? command.or(rules) : { _id: '__no_authorized_records__' };
+}
+async function scopedRegistration(admin, id) {
+  if (!/^[a-f0-9]{64}$/.test(id || '')) throw new ApiError('报名记录无效', 'INVALID_INPUT');
+  const result = await db.collection('registrations').where(command.and([scope(admin), { _id: id }])).limit(1).get();
+  if (!result.data.length) throw new ApiError('记录不存在或不在授权范围内', 'FORBIDDEN');
+  return result.data[0];
+}
+async function accountList(admin) {
+  requireSuper(admin);
+  const accounts = (await db.collection('admins').limit(100).get()).data.map(publicAdmin);
+  const options = await db.collection('registrations').aggregate().group({ _id: { school: '$school', classId: '$classId' } }).limit(1000).end();
+  return { accounts, schools: [...new Set(options.list.map(v => v._id.school).filter(Boolean))].sort(), classIds: [...new Set(options.list.map(v => v._id.classId).filter(Boolean))].sort(), permissionOptions };
+}
+async function accountSave(admin, data) {
+  requireSuper(admin);
+  const username = normalizeUsername(data.username);
+  if (!/^[a-z0-9_-]{4,32}$/.test(username)) throw new ApiError('账号需为4至32位字母、数字、下划线或短横线', 'INVALID_INPUT');
+  const primary = await adminDocument();
+  if (username === primary.username) throw new ApiError('主管理员不能在此修改', 'INVALID_INPUT');
+  const id = digest(`admin:${username}`);
+  const current = await adminDocument(id);
+  const displayName = typeof data.displayName === 'string' ? data.displayName.trim().slice(0,40) : '';
+  if (!displayName) throw new ApiError('请填写账号名称', 'INVALID_INPUT');
+  if (!current && !validPassword(data.password)) throw new ApiError('新账号密码至少10位', 'INVALID_INPUT');
+  if (data.password && !validPassword(data.password)) throw new ApiError('密码长度需为10至128位', 'INVALID_INPUT');
+  const strings = value => Array.isArray(value) ? [...new Set(value.filter(v => typeof v === 'string' && v.trim() && v.length <= 100).map(v => v.trim()))].slice(0,100) : [];
+  const next = { username, displayName, role: 'staff', permissions: strings(data.permissions).filter(p => permissionOptions.includes(p)), schools: strings(data.schools), classIds: strings(data.classIds), disabled: data.disabled === true, updatedAt: isoNow(), sessionVersion: (current && current.sessionVersion || 0) + 1 };
+  if (data.password) { next.passwordSalt = randomBytes(16).toString('hex'); next.passwordHash = passwordDigest(data.password, next.passwordSalt); }
+  if (current) await db.collection('admins').doc(id).update({ data: next });
+  else await db.collection('admins').add({ data: { _id: id, ...next, createdAt: isoNow() } });
+  await audit(admin, 'account_saved', { accountId: id, permissions: next.permissions, schools: next.schools, classIds: next.classIds, disabled: next.disabled });
+  return { ok: true };
+}
+
+function publicRegistration(item) {
+  return ({
       id: item._id,
       name: item.name,
       phone: item.phone,
@@ -132,27 +170,61 @@ async function dashboard(admin, data) {
       workUnit: item.workUnit || '',
       currentAddress: item.currentAddress || '',
       politicalStatus: item.politicalStatus || '',
-      unionMember: item.unionMember === true,
-      veteran: item.veteran === true,
+      unionMember: typeof item.unionMember === 'boolean' ? item.unionMember : null,
+      veteran: typeof item.veteran === 'boolean' ? item.veteran : null,
       emergencyName: item.emergencyName || '',
       emergencyPhone: item.emergencyPhone || '',
       school: item.school,
       level: item.level,
+      classId: item.classId || '',
+      source: item.source || 'miniprogram',
+      sourceRow: item.sourceRow || null,
+      schoolOriginal: item.schoolOriginal || '',
+      teacherName: item.teacherName || '',
+      studentNo: item.studentNo || '',
+      paymentStatus: item.paymentStatus || 'unknown',
       major: item.major,
       fee: item.fee,
+      duration: item.duration || '',
+      studyMode: item.studyMode || '',
+      materials: Object.fromEntries(['idFront', 'idBack', 'education', 'photo'].filter(kind => item.materials && item.materials[kind]).map(kind => {
+        const m = item.materials[kind];
+        return [kind, { fileName: m.fileName, uploadedAt: m.uploadedAt, status: m.status || 'pending', size: m.size }];
+      })),
       status: item.status,
       reviewRemark: item.reviewRemark || '',
       revision: item.revision,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt
-    })),
-    page,
-    pageSize,
-    filteredTotal: (await query.count()).total
+  });
+}
+
+async function dashboard(admin, data) {
+  requirePermission(admin, 'registrations.view');
+  const status = ['pending', 'approved', 'rejected'].includes(data.status) ? data.status : '';
+  const page = Number.isSafeInteger(data.page) && data.page > 0 ? data.page : 1;
+  const pageSize = 30;
+  const collection = db.collection('registrations');
+  const baseScope = scope(admin);
+  const filtered = status ? command.and([baseScope, { status }]) : baseScope;
+  const query = collection.where(filtered);
+  const [total, pending, approved, rejected, rows] = await Promise.all([
+    collection.where(baseScope).count(),
+    collection.where(command.and([baseScope, { status: 'pending' }])).count(),
+    collection.where(command.and([baseScope, { status: 'approved' }])).count(),
+    collection.where(command.and([baseScope, { status: 'rejected' }])).count(),
+    query.orderBy('updatedAt', 'desc').skip((page - 1) * pageSize).limit(pageSize).get()
+  ]);
+  return {
+    admin: publicAdmin(admin),
+    stats: { total: total.total, pending: pending.total, approved: approved.total, rejected: rejected.total },
+    registrations: rows.data.map(publicRegistration), page, pageSize, filteredTotal: (await query.count()).total
   };
 }
 
 async function review(admin, data) {
+  requirePermission(admin, 'registrations.review');
+  await scopedRegistration(admin, data.registrationId);
   if (typeof data.registrationId !== 'string' || !/^[a-f0-9]{64}$/.test(data.registrationId)) throw new ApiError('报名记录无效', 'INVALID_INPUT');
   if (!['approved', 'rejected', 'pending'].includes(data.status)) throw new ApiError('请选择审核结果', 'INVALID_INPUT');
   const remark = typeof data.remark === 'string' ? data.remark.trim().slice(0, 500) : '';
@@ -173,11 +245,34 @@ async function review(admin, data) {
   return { ok: true };
 }
 
+async function materialLink(admin, data) {
+  requirePermission(admin, 'materials.view');
+  if (!/^[a-f0-9]{64}$/.test(data.registrationId || '') || !['idFront', 'idBack', 'education', 'photo'].includes(data.kind)) throw new ApiError('材料参数无效', 'INVALID_INPUT');
+  const record = await scopedRegistration(admin, data.registrationId);
+  const material = record.materials && record.materials[data.kind];
+  if (!material || !material.fileId) throw new ApiError('该项材料尚未上传', 'NOT_FOUND');
+  if (!material.fileId.startsWith('cloud://') || !material.fileId.includes(`/student-materials/${data.registrationId}/${data.kind}/`)) throw new ApiError('材料路径不匹配', 'INVALID_INPUT');
+  const links = await cloud.getTempFileURL({ fileList: [{ fileID: material.fileId, maxAge: 300 }] });
+  const file = links.fileList && links.fileList[0];
+  if (!file || !file.tempFileURL || !file.tempFileURL.startsWith('https://')) throw new ApiError('暂时无法打开材料，请重试');
+  await audit(admin, 'material_viewed', { registrationId: data.registrationId, kind: data.kind });
+  return { url: file.tempFileURL };
+}
+
 async function handle(action, data) {
   if (action === 'bootstrapStatus') return { initialized: Boolean(await adminDocument()) };
   if (action === 'bootstrap') return bootstrap(data);
   if (action === 'login') return login(data);
   const admin = await authenticate(data.token);
+  if (action === 'accounts') return accountList(admin);
+  if (action === 'saveAccount') return accountSave(admin, data);
+  if (action === 'materialLink') return materialLink(admin, data);
+  if (action === 'registrationDetail') {
+    if (!/^[a-f0-9]{64}$/.test(data.registrationId || '')) throw new ApiError('报名记录无效', 'INVALID_INPUT');
+    requirePermission(admin, 'registrations.view');
+    const record = await scopedRegistration(admin, data.registrationId);
+    return { registration: publicRegistration(record), admin: publicAdmin(admin) };
+  }
   if (action === 'dashboard') return dashboard(admin, data);
   if (action === 'review') return review(admin, data);
   if (action === 'logout') {

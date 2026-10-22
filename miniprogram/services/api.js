@@ -43,6 +43,8 @@ module.exports = {
   resume: login,
   async me() { requireSignedIn(); return call('me'); },
   async mine() { requireSignedIn(); return call('mine'); },
+  async prepareMaterialUpload(data) { requireSignedIn(); return call('materials', { ...data, operation: 'prepare' }); },
+  async saveMaterial(data) { requireSignedIn(); return call('materials', { ...data, operation: 'save' }); },
   async register(data, studentId) { requireSignedIn(); return call('register', { ...data, studentId }); },
   async update(data, studentId) { requireSignedIn(); return call('update', { ...data, studentId }); },
   async logout() {

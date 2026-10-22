@@ -1,45 +1,51 @@
-<view class="container">
-  <text class="title">登录报名系统</text>
-  <view class="demo-tag">真实微信身份登录 · 招生数据暂为示例</view>
-  <text wx:if="{{loading}}" class="muted">正在确认登录信息…</text>
+<view class="container account-page">
+  <block wx:if="{{!student}}">
+    <text class="title">我的账号</text>
+    <text class="muted">使用当前微信登录后，可查看报名信息和管理报名材料。</text>
+    <text wx:if="{{loading}}" class="muted loading-text">正在确认登录信息…</text>
 
-  <block wx:elif="{{!student}}">
-    <view class="card login-card">
+    <view wx:else class="card login-card">
       <view class="wechat-mark">微</view>
       <text class="section center">微信快捷登录</text>
       <text class="muted center">系统只识别当前微信身份，不读取微信号或密码</text>
-      <button wx:if="{{ready}}" class="primary" bindtap="login" loading="{{busy}}" disabled="{{busy}}">使用当前微信登录</button>
-      <button wx:if="{{demoMode}}" class="primary" bindtap="demoLogin" loading="{{busy}}" disabled="{{busy}}">进入演示账号</button>
+      <button wx:if="{{ready}}" class="primary large" bindtap="login" loading="{{busy}}" disabled="{{busy}}">使用当前微信登录</button>
+      <button wx:if="{{demoMode}}" class="primary large" bindtap="demoLogin" loading="{{busy}}" disabled="{{busy}}">进入演示账号</button>
     </view>
   </block>
 
   <block wx:else>
-    <view class="card">
-      <text class="section">微信已登录</text>
-      <text class="muted">学生账号：{{student.accountNo}}</text>
-      <text class="muted">该账号已与当前微信身份关联</text>
+    <view class="account-hero">
+      <view class="account-avatar">{{registration ? registration.initial : '微'}}</view>
+      <view class="account-main"><text class="account-name">{{registration ? registration.name : '微信用户'}}</text><text class="account-no">学生账号 {{student.accountNo}}</text></view>
+      <text class="bound-badge">已绑定微信</text>
     </view>
 
-    <view wx:if="{{registration}}" class="card">
-      <text class="status">{{registration.statusText}}</text>
-      <text class="label">姓名</text><text>{{registration.name}}</text>
-      <text class="label">联系电话</text><text>{{registration.phone}}</text>
-      <text class="label">报考学校</text><text>{{registration.school || '待补充'}}</text>
-      <text class="label">层次与专业</text><text>{{registration.level}} · {{registration.major}}</text>
-      <text class="muted">提交时间：{{registration.createdAt}}</text>
-      <button class="primary" bindtap="edit" disabled="{{busy}}">修改报名资料</button>
+    <view wx:if="{{registration}}" class="card registration-card">
+      <view class="card-heading"><view><text class="section">我的报名</text><text class="muted">{{registration.school}} · {{registration.major}}</text></view><text class="status-chip {{registration.status}}">{{registration.statusText}}</text></view>
+      <view class="info-grid">
+        <view><text>报考层次</text><text>{{registration.level}}</text></view>
+        <view><text>联系电话</text><text>{{registration.phone}}</text></view>
+        <view><text>身份证号</text><text>{{registration.idNumberMasked}}</text></view>
+        <view><text>提交时间</text><text>{{registration.createdAt}}</text></view>
+      </view>
+      <view wx:if="{{registration.reviewRemark}}" class="notice">审核备注：{{registration.reviewRemark}}</view>
+      <button class="outline-button" bindtap="edit" disabled="{{busy}}">修改报名资料</button>
+    </view>
+
+    <view wx:if="{{registration}}" class="card material-entry" bindtap="materials">
+      <!-- <view class="entry-icon">料</view> -->
+      <view class="entry-content"><text class="section">报名材料</text><text class="muted">身份证、学历证明、证件电子照片</text><view class="entry-progress"><view style="width: {{registration.materialsPercent}}%"></view></view><text class="progress-text">已上传 {{registration.materialsCompleted}} / 4 项</text></view>
+      <text class="entry-arrow">›</text>
     </view>
 
     <view wx:else class="card">
-      <text class="section">选择办理方式</text>
+      <text class="section">开始办理</text>
       <text class="muted">新考生可直接填写报名信息；已在机构登记的考生可进入身份核验。</text>
       <button class="primary" bindtap="register">新考生填写报名信息</button>
       <button bindtap="verification">绑定已有考生档案</button>
     </view>
 
-    <view class="card">
-      <button bindtap="logout" loading="{{busy}}" disabled="{{busy}}">退出当前登录</button>
-    </view>
+    <button class="logout-button" bindtap="logout" loading="{{busy}}" disabled="{{busy}}">退出当前账号</button>
   </block>
 
   <text wx:if="{{error}}" class="error">{{error}}</text>

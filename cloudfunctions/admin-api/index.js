@@ -355,6 +355,57 @@ function publicRegistration(item) {
   };
 }
 
+const registrationFilterFields = ["school", "major", "level", "classId"];
+
+async function registrationFilters(admin) {
+  requirePermission(admin, "registrations.view");
+  const values = Object.fromEntries(
+    registrationFilterFields.map((field) => [field, new Set()]),
+  );
+  const batchSize = 200;
+  let offset = 0;
+
+  while (true) {
+    const result = await db
+      .collection("registrations")
+      .aggregate()
+      .match(scope(admin))
+      .group({
+        _id: {
+          school: "$school",
+          major: "$major",
+          level: "$level",
+          classId: "$classId",
+        },
+      })
+      .sort({
+        "_id.school": 1,
+        "_id.major": 1,
+        "_id.level": 1,
+        "_id.classId": 1,
+      })
+      .skip(offset)
+      .limit(batchSize)
+      .end();
+
+    for (const item of result.list) {
+      for (const field of registrationFilterFields) {
+        const value = item._id && item._id[field];
+        if (typeof value === "string" && value.trim()) values[field].add(value);
+      }
+    }
+    if (result.list.length < batchSize) break;
+    offset += batchSize;
+  }
+
+  return Object.fromEntries(
+    registrationFilterFields.map((field) => [
+      field,
+      [...values[field]].sort((a, b) => a.localeCompare(b, "zh-CN")),
+    ]),
+  );
+}
+
 async function dashboard(admin, data) {
   requirePermission(admin, "registrations.view");
   const status = ["pending", "approved", "rejected"].includes(data.status)
@@ -372,6 +423,17 @@ async function dashboard(admin, data) {
 
   if (status) {
     conditions.push({ status });
+  }
+
+  for (const field of registrationFilterFields) {
+    if (data[field] !== undefined && typeof data[field] !== "string") {
+      throw new ApiError("筛选条件无效", "INVALID_INPUT");
+    }
+    const value = typeof data[field] === "string" ? data[field].trim() : "";
+    if (value.length > 160) {
+      throw new ApiError("筛选条件过长", "INVALID_INPUT");
+    }
+    if (value) conditions.push({ [field]: value });
   }
 
   const keyword = typeof data.keyword === "string" ? data.keyword.trim() : "";
@@ -410,7 +472,8 @@ async function dashboard(admin, data) {
     collection.where(command.and([baseScope, { status: "approved" }])).count(),
     collection.where(command.and([baseScope, { status: "rejected" }])).count(),
     query
-      .orderBy("updatedAt", "desc")
+      .orderBy("createdAt", "asc")
+      .orderBy("_id", "asc")
       .skip((page - 1) * pageSize)
       .limit(pageSize)
       .get(),
@@ -504,6 +567,7 @@ async function handle(action, data) {
   if (action === "bootstrap") return bootstrap(data);
   if (action === "login") return login(data);
   const admin = await authenticate(data.token);
+  if (action === "registrationFilters") return registrationFilters(admin);
   if (action === "accounts") return accountList(admin);
   if (action === "saveAccount") return accountSave(admin, data);
   if (action === "materialLink") return materialLink(admin, data);

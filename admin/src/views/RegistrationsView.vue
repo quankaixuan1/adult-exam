@@ -8,6 +8,14 @@ const emit = defineEmits(['expired', 'admin']);
 const error = ref('');
 const data = reactive({ admin: null, stats: { total: 0, pending: 0, approved: 0, rejected: 0 }, registrations: [], page: 1, pageSize: 30, filteredTotal: 0 });
 const filter = ref(''), search = ref(''), keyword = ref(''), selected = ref(null);
+const filters = reactive({ school: '', major: '', level: '', classId: '' });
+const filterOptions = reactive({ school: [], major: [], level: [], classId: [] });
+const filterFields = [
+  { key: 'school', label: '学校' },
+  { key: 'major', label: '专业' },
+  { key: 'level', label: '层次' },
+  { key: 'classId', label: '班级' }
+];
 
 const rows = computed(() => data.registrations);
 
@@ -20,6 +28,7 @@ function resetSearch() {
   search.value = '';  // 清空输入 
   keyword.value = ''; // 清空实际发送给后端的关键词 
   filter.value = '';  // 恢复全部审核状态
+  Object.assign(filters, { school: '', major: '', level: '', classId: '' });
   loadDashboard(1);   // 重新加载第一页
 }
 // const rows = computed(() => {
@@ -27,6 +36,14 @@ function resetSearch() {
 //   return keyword ? data.registrations.filter(item => [item.name, item.phone, item.school, item.level, item.major].some(v => String(v || '').toLowerCase().includes(keyword))) : data.registrations;
 // });
 function showError(e) { error.value = e.message || '操作未完成，请重试'; if (e.code === 'LOGIN_REQUIRED') emit('expired'); }
+async function loadFilterOptions() {
+  try {
+    const result = await call('registrationFilters', { token: props.token }, { loading: false });
+    Object.assign(filterOptions, result);
+  } catch (e) {
+    showError(e);
+  }
+}
 let requestId = 0;
 async function loadDashboard(page = 1, options = {}) {
   const currentId = ++requestId;
@@ -36,6 +53,10 @@ async function loadDashboard(page = 1, options = {}) {
       token: props.token,
       status: filter.value,
       keyword: keyword.value,
+      school: filters.school,
+      major: filters.major,
+      level: filters.level,
+      classId: filters.classId,
       page
     }, options);
     if (currentId !== requestId) return;
@@ -49,7 +70,10 @@ async function openReview(item) {
   try { const result = await call('registrationDetail', { token: props.token, registrationId: item.id }); if (result.admin) { data.admin = result.admin; emit('admin', result.admin); } selected.value = result.registration; }
   catch (e) { showError(e); }
 }
-onMounted(() => loadDashboard(1, { loading: false }));
+onMounted(() => Promise.all([
+  loadDashboard(1, { loading: false }),
+  loadFilterOptions()
+]));
 defineExpose({ refresh: () => loadDashboard(data.page) });
 </script>
 <template>
@@ -81,6 +105,17 @@ defineExpose({ refresh: () => loadDashboard(data.page) });
           </option>
         </select>
       </form>
+      <div class="filter-bar">
+        <label v-for="field in filterFields" :key="field.key">
+          <span>{{ field.label }}</span>
+          <select v-model="filters[field.key]" @change="loadDashboard(1)">
+            <option value="">全部{{ field.label }}</option>
+            <option v-for="value in filterOptions[field.key]" :key="value" :value="value">
+              {{ value }}
+            </option>
+          </select>
+        </label>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -184,6 +219,28 @@ defineExpose({ refresh: () => loadDashboard(data.page) });
   color: #71809c
 }
 
+.filter-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px;
+  border-bottom: 1px solid #e8edf4;
+}
+
+.filter-bar label {
+  min-width: 0;
+}
+
+.filter-bar label > span {
+  font-size: 13px;
+  color: #71809c;
+}
+
+.filter-bar select {
+  width: 100%;
+  min-width: 0;
+}
+
 @media(max-width:900px) {
   .stats {
     grid-template-columns: 1fr 1fr
@@ -191,6 +248,16 @@ defineExpose({ refresh: () => loadDashboard(data.page) });
 
   .toolbar {
     grid-template-columns: 1fr
+  }
+
+  .filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media(max-width:500px) {
+  .filter-bar {
+    grid-template-columns: 1fr;
   }
 }
 </style>

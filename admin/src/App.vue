@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useAuth } from './composables/useAuth';
+import { loading } from './composables/useLoading';
 import AdminLayout from './layouts/AdminLayout.vue';
 import LoginView from './views/LoginView.vue';
 import ProgramsView from './views/ProgramsView.vue';
@@ -22,4 +23,40 @@ function refresh() { if (tab.value === 'accounts') accounts.value?.refresh(); el
   <AccountsView v-if="tab === 'accounts' && admin?.role === 'super'" ref="accounts" :token="token"/>
   <ProgramsView v-if="tab === 'programs'"/>
 </AdminLayout>
+<Teleport to="body">
+  <div v-if="mode === 'dashboard' && loading" class="global-loading">
+    <div class="global-loading-card" role="status" aria-live="polite">
+      <div class="loader" aria-hidden="true"></div>
+      <span>正在加载，请稍候…</span>
+    </div>
+  </div>
+</Teleport>
 </template>
+
+<style scoped>
+.global-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.25);
+  cursor: wait;
+}
+
+.global-loading-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 28px;
+  border-radius: 12px;
+  background: #fff;
+  color: #17233c;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+
+.global-loading-card .loader {
+  flex-shrink: 0;
+  margin: 0;
+}
+</style>

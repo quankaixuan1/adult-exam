@@ -11,9 +11,9 @@ function showError(e) { error.value = e.message || '操作未完成，请重试'
 async function initialize() {
   error.value = '';
   try {
-    const state = await call('bootstrapStatus');
+    const state = await call('bootstrapStatus', {}, { loading: false });
     if (!state.initialized) mode.value = 'bootstrap';
-    else if (token.value) { await call('dashboard', { token: token.value, page: 1 }); mode.value = 'dashboard'; }
+    else if (token.value) { await call('dashboard', { token: token.value, page: 1 }, { loading: false }); mode.value = 'dashboard'; }
     else mode.value = 'login';
   } catch (e) {
     showError(e);
@@ -34,7 +34,7 @@ async function submitAuth(authForm) {
       username: authForm.username,
       displayName: authForm.displayName,
       password: authForm.password
-    });
+    }, { loading: false });
     token.value = result.token;
     localStorage.setItem(TOKEN_KEY, result.token);
     authForm.password = '';

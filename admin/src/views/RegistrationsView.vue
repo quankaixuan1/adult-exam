@@ -28,7 +28,7 @@ function resetSearch() {
 // });
 function showError(e) { error.value = e.message || '操作未完成，请重试'; if (e.code === 'LOGIN_REQUIRED') emit('expired'); }
 let requestId = 0;
-async function loadDashboard(page = 1) {
+async function loadDashboard(page = 1, options = {}) {
   const currentId = ++requestId;
   error.value = '';
   try {
@@ -37,7 +37,7 @@ async function loadDashboard(page = 1) {
       status: filter.value,
       keyword: keyword.value,
       page
-    });
+    }, options);
     if (currentId !== requestId) return;
     Object.assign(data, result);
     emit('admin', result.admin);
@@ -49,7 +49,7 @@ async function openReview(item) {
   try { const result = await call('registrationDetail', { token: props.token, registrationId: item.id }); if (result.admin) { data.admin = result.admin; emit('admin', result.admin); } selected.value = result.registration; }
   catch (e) { showError(e); }
 }
-onMounted(() => loadDashboard());
+onMounted(() => loadDashboard(1, { loading: false }));
 defineExpose({ refresh: () => loadDashboard(data.page) });
 </script>
 <template>

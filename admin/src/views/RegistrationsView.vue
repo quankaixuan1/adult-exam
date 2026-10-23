@@ -15,6 +15,13 @@ function submitSearch() {
   keyword.value = search.value.trim();
   loadDashboard(1);
 }
+
+function resetSearch() {
+  search.value = '';  // 清空输入 
+  keyword.value = ''; // 清空实际发送给后端的关键词 
+  filter.value = '';  // 恢复全部审核状态
+  loadDashboard(1);   // 重新加载第一页
+}
 // const rows = computed(() => {
 //   const keyword = search.value.trim().toLowerCase();
 //   return keyword ? data.registrations.filter(item => [item.name, item.phone, item.school, item.level, item.major].some(v => String(v || '').toLowerCase().includes(keyword))) : data.registrations;
@@ -64,6 +71,7 @@ defineExpose({ refresh: () => loadDashboard(data.page) });
         <div class="search-box">
           <input v-model="search" maxlength="100" placeholder="搜索全部授权记录的姓名、手机号、学校、层次或专业" />
           <button class="primary" type="submit">搜索</button>
+          <button class="outline" type="button" @click="resetSearch">重置</button>
         </div>
 
         <select v-model="filter" @change="loadDashboard(1)">

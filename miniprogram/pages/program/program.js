@@ -5,8 +5,8 @@ Page({
   data: {
     error: '',
     programs,
-    schools: [...new Set(programs.map(item => item.school))],
-    levels: [],
+    schools: [],
+    levels: [...new Set(programs.map(item => item.level))],
     majors: [],
     school: '',
     level: '',
@@ -30,9 +30,9 @@ Page({
   restoreSelection(draft) {
     const program = draft.program && programs.find(item => item.id === draft.program.id);
     if (!program) return;
-    const levels = this.unique(programs.filter(item => item.school === program.school).map(item => item.level));
+    const schools = this.unique(programs.filter(item => item.level === program.level).map(item => item.school));
     const majors = programs.filter(item => item.school === program.school && item.level === program.level);
-    this.setData({ school: program.school, level: program.level, program, levels, majors, consent: draft.consent === true });
+    this.setData({ school: program.school, level: program.level, program, schools, majors, consent: draft.consent === true });
   },
 
   saveDraft() {
@@ -41,15 +41,18 @@ Page({
   },
 
   chooseSchool(e) {
+    if (!this.data.level) return;
     const school = this.data.schools[Number(e.detail.value)];
-    const levels = this.unique(programs.filter(item => item.school === school).map(item => item.level));
-    this.setData({ school, levels, level: '', majors: [], program: null, error: '' }, () => this.saveDraft());
+    if (!school) return;
+    const majors = programs.filter(item => item.school === school && item.level === this.data.level);
+    this.setData({ school, majors, program: null, error: '' }, () => this.saveDraft());
   },
 
   chooseLevel(e) {
     const level = this.data.levels[Number(e.detail.value)];
-    const majors = programs.filter(item => item.school === this.data.school && item.level === level);
-    this.setData({ level, majors, program: null, error: '' }, () => this.saveDraft());
+    if (!level) return;
+    const schools = this.unique(programs.filter(item => item.level === level).map(item => item.school));
+    this.setData({ level, schools, school: '', majors: [], program: null, error: '' }, () => this.saveDraft());
   },
 
   chooseMajor(e) {
@@ -66,7 +69,7 @@ Page({
 
   submit() {
     if (!this.data.program) {
-      this.setData({ error: '请完整选择学校、报考层次和专业。' });
+      this.setData({ error: '请依次选择报考层次、学校和专业。' });
       return;
     }
     if (!this.data.consent) {

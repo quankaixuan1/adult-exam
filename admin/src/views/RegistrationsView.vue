@@ -66,15 +66,23 @@ async function loadDashboard(page = 1, options = {}) {
   catch (e) { if (currentId === requestId) showError(e); }
 }
 async function openReview(item) {
+  return openRegistration(item.id);
+}
+async function openRegistration(registrationId) {
   error.value = '';
-  try { const result = await call('registrationDetail', { token: props.token, registrationId: item.id }); if (result.admin) { data.admin = result.admin; emit('admin', result.admin); } selected.value = result.registration; }
-  catch (e) { showError(e); }
+  try {
+    const result = await call('registrationDetail', { token: props.token, registrationId });
+    if (result.admin) { data.admin = result.admin; emit('admin', result.admin); }
+    selected.value = result.registration;
+    return true;
+  }
+  catch (e) { showError(e); return false; }
 }
 onMounted(() => Promise.all([
   loadDashboard(1, { loading: false }),
   loadFilterOptions()
 ]));
-defineExpose({ refresh: () => loadDashboard(data.page) });
+defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
 </script>
 <template>
   <div class="registrations-view">

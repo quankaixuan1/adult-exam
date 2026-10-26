@@ -20,6 +20,18 @@
       <text class="bound-badge">已绑定微信</text>
     </view>
 
+    <view wx:if="{{unreadTotal || notificationError}}" class="card notification-card">
+      <text class="section">审核消息 <text wx:if="{{unreadTotal}}" class="notification-badge">{{unreadTotal}}</text></text>
+      <text wx:if="{{notificationError}}" class="error">{{notificationError}}</text>
+      <view wx:for="{{notifications}}" wx:key="id" class="notification-row">
+        <text class="notification-title">{{item.statusText}}</text>
+        <text class="muted">{{item.timeText}}</text>
+        <button class="outline-button" data-id="{{item.id}}" bindtap="readNotification" disabled="{{readingNotification}}">查看审核结果</button>
+      </view>
+      <text wx:if="{{unreadTotal > notifications.length}}" class="muted">显示最近20条未读消息，查看后显示更早的消息。</text>
+      <button wx:if="{{notificationError}}" bindtap="refreshNotifications">重新读取消息</button>
+    </view>
+
     <view wx:if="{{registration}}" class="card registration-card">
       <view class="card-heading"><view><text class="section">我的报名</text><text class="muted">{{registration.school}} · {{registration.major}}</text></view><text class="status-chip {{registration.status}}">{{registration.statusText}}</text></view>
       <view class="info-grid">
@@ -27,9 +39,11 @@
         <view><text>联系电话</text><text>{{registration.phone}}</text></view>
         <view><text>身份证号</text><text>{{registration.idNumberMasked}}</text></view>
         <view><text>提交时间</text><text>{{registration.createdAt}}</text></view>
+        <view><text>缴费状态</text><text>{{registration.paymentText}}</text></view>
       </view>
       <view wx:if="{{registration.reviewRemark}}" class="notice">审核备注：{{registration.reviewRemark}}</view>
       <button class="outline-button" bindtap="edit" disabled="{{busy}}">修改报名资料</button>
+      <button wx:if="{{registration.needsDemoPayment}}" class="primary" bindtap="pay">继续模拟缴费</button>
     </view>
 
     <view wx:if="{{registration}}" class="card material-entry" bindtap="materials">

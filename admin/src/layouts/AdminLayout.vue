@@ -1,6 +1,15 @@
 <script setup>
-defineProps({ admin: Object, tab: String, error: String });
-const emit = defineEmits(['update:tab', 'refresh', 'logout']);
+import { ref } from 'vue';
+defineProps({ admin: Object, tab: String, error: String, notifications: { type: Array, default: () => [] },
+  unreadTotal: Number, notificationError: String, refreshingNotifications: Boolean,
+  openingNotification: Boolean, canReadNotifications: Boolean });
+const emit = defineEmits(['update:tab', 'refresh', 'logout', 'open-notification', 'refresh-notifications']);
+const notificationsOpen = ref(false);
+const titles = { registration_completed: '新报名 · 模拟缴费已完成', material_uploaded: '报名材料已提交' };
+function toggleNotifications() {
+  notificationsOpen.value = !notificationsOpen.value;
+  if (notificationsOpen.value) emit('refresh-notifications');
+}
 </script>
 
 <template>
@@ -11,7 +20,26 @@ const emit = defineEmits(['update:tab', 'refresh', 'logout']);
       <div class="admin-box"><span>{{ admin?.displayName }}</span><small>{{ admin?.username }}</small><button @click="emit('logout')">退出登录</button></div>
     </aside>
     <main class="content">
-      <header><div><p class="eyebrow">报名中心</p><h1>{{ tab === 'accounts' ? '账号与权限' : tab === 'programs' ? '学校与专业' : '报名审核' }}</h1></div><button class="outline" @click="emit('refresh')">刷新数据</button></header>
+      <header>
+        <div><p class="eyebrow">报名中心</p><h1>{{ tab === 'accounts' ? '账号与权限' : tab === 'programs' ? '学校与专业' : '报名审核' }}</h1></div>
+        <div class="header-actions">
+          <button v-if="canReadNotifications" class="outline notification-toggle" :aria-expanded="notificationsOpen" @click="toggleNotifications">
+            消息 <span v-if="unreadTotal" class="unread-badge">{{ unreadTotal > 99 ? '99+' : unreadTotal }}</span>
+          </button>
+          <button class="outline" @click="emit('refresh')">刷新数据</button>
+        </div>
+      </header>
+      <section v-if="notificationsOpen && canReadNotifications" class="notification-panel" aria-label="未读消息">
+        <div class="notification-heading"><h2>未读消息 · {{ unreadTotal || 0 }}</h2><button class="link-button" :disabled="refreshingNotifications" @click="emit('refresh-notifications')">{{ refreshingNotifications ? '更新中…' : '更新消息' }}</button></div>
+        <p v-if="notificationError" class="error">{{ notificationError }}</p>
+        <p v-if="!notifications.length" class="muted">{{ refreshingNotifications ? '正在读取消息…' : '暂无未读消息' }}</p>
+        <button v-for="item in notifications" :key="item.id" class="notification-item" :disabled="openingNotification" @click="emit('open-notification', item)">
+          <strong>{{ titles[item.type] || '报名更新' }}</strong>
+          <span>{{ item.studentName || '考生' }} · 点击查看报名详情</span>
+          <small>{{ new Date(item.createdAt).toLocaleString('zh-CN') }}</small>
+        </button>
+        <p v-if="unreadTotal > notifications.length" class="muted">显示最近 20 条未读消息，查看后将显示更早的消息。</p>
+      </section>
       <p v-if="error" class="error banner">{{ error }}</p>
       <slot/>
     </main>
@@ -19,6 +47,15 @@ const emit = defineEmits(['update:tab', 'refresh', 'logout']);
 </template>
 
 <style scoped>
+.header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.notification-toggle { display: inline-flex; align-items: center; gap: 8px; }
+.unread-badge { background: #d83b3b; color: #fff; border-radius: 999px; padding: 2px 7px; font-size: 12px; }
+.notification-panel { padding: 20px; margin-bottom: 22px; background: #fff; border: 1px solid #d9e1ee; border-radius: 12px; }
+.notification-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.notification-heading h2 { margin: 0; font-size: 18px; }
+.notification-item { display: grid; gap: 6px; width: 100%; text-align: left; padding: 16px 0; border: 0; border-bottom: 1px solid #edf1f6; background: transparent; color: #17233c; cursor: pointer; }
+.notification-item small { color: #71809c; }
+.notification-item:disabled { opacity: .6; cursor: wait; }
 
 
 .dashboard-shell {

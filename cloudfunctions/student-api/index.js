@@ -1,6 +1,7 @@
 const cloud = require('wx-server-sdk');
 const { validateIdNumber } = require('./id-number');
 const { createHash, randomBytes, createCipheriv } = require('crypto');
+const { withTransaction, addNotification, createInbox } = require('./notifications');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
@@ -14,27 +15,486 @@ const materialKinds = {
 const MAX_MATERIAL_SIZE = 10 * 1024 * 1024;
 
 const programs = [
-  { id: 'hdu-zsb-gs', school: '杭州电子科技大学', level: '专升本', major: '工商管理', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'hdu-zsb-kj', school: '杭州电子科技大学', level: '专升本', major: '会计学', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'hdu-zsb-rl', school: '杭州电子科技大学', level: '专升本', major: '人力资源管理', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'hdu-zsb-sc', school: '杭州电子科技大学', level: '专升本', major: '市场营销', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'hdu-zsb-dz', school: '杭州电子科技大学', level: '专升本', major: '电子商务', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'hdu-zsb-jsj', school: '杭州电子科技大学', level: '专升本', major: '计算机科学与技术', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'hdu-zsb-jx', school: '杭州电子科技大学', level: '专升本', major: '机械设计制造及其自动化', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'hdu-zsb-dzxx', school: '杭州电子科技大学', level: '专升本', major: '电子信息工程', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'hdu-zsb-ai', school: '杭州电子科技大学', level: '专升本', major: '人工智能', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'hdu-zsb-dq', school: '杭州电子科技大学', level: '专升本', major: '电气工程及其自动化', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'hdu-zsb-szmt', school: '杭州电子科技大学', level: '专升本', major: '数字媒体应用技术', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'hdu-zsb-fx', school: '杭州电子科技大学', level: '专升本', major: '法学', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'hdu-gqb-gs', school: '杭州电子科技大学', level: '高起本', major: '工商管理', duration: '5年', studyMode: '非脱产', fee: 680 },
-  { id: 'hdu-gqb-jsj', school: '杭州电子科技大学', level: '高起本', major: '计算机科学与技术', duration: '5年', studyMode: '非脱产', fee: 680 },
-  { id: 'zjtie-gqz-gs', school: '浙江经济职业技术学院', level: '高起专', major: '工商企业管理', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'zjtie-gqz-kj', school: '浙江经济职业技术学院', level: '高起专', major: '大数据与会计', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'zjtie-gqz-sj', school: '浙江经济职业技术学院', level: '高起专', major: '大数据技术', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'zjtie-gqz-dz', school: '浙江经济职业技术学院', level: '高起专', major: '电子商务', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'zjtie-gqz-sc', school: '浙江经济职业技术学院', level: '高起专', major: '市场营销', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'zjtie-gqz-wl', school: '浙江经济职业技术学院', level: '高起专', major: '现代物流管理', duration: '2.5年', studyMode: '非脱产', fee: 600 },
-  { id: 'zjtie-gqz-wlw', school: '浙江经济职业技术学院', level: '高起专', major: '物联网应用技术', duration: '2.5年', studyMode: '非脱产', fee: 600 }
+  {
+    "id": "zjtie-gqz-kj",
+    "level": "高起专",
+    "school": "浙江经济职业技术学院",
+    "major": "大数据与会计",
+    "examCategory": "文理兼招",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "zjtie-gqz-dz",
+    "level": "高起专",
+    "school": "浙江经济职业技术学院",
+    "major": "电子商务",
+    "examCategory": "文理兼招",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "zjtie-gqz-sj",
+    "level": "高起专",
+    "school": "浙江经济职业技术学院",
+    "major": "大数据技术",
+    "examCategory": "文理兼招",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-8a34be91e3851982",
+    "level": "高起专",
+    "school": "浙江经济职业技术学院",
+    "major": "国际经济与贸易",
+    "examCategory": "文理兼招",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-4ade33782461a81f",
+    "level": "高起专",
+    "school": "浙江经济职业技术学院",
+    "major": "金融服务与管理",
+    "examCategory": "文理兼招",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-e7b372d8aeeb4e09",
+    "level": "高起专",
+    "school": "浙江经济职业技术学院",
+    "major": "酒店管理与数字化运营",
+    "examCategory": "文理兼招",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "zjtie-gqz-gs",
+    "level": "高起专",
+    "school": "浙江经济职业技术学院",
+    "major": "工商企业管理",
+    "examCategory": "文理兼招",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-9c3fc2b1246f3d77",
+    "level": "高起专",
+    "school": "浙江经济职业技术学院",
+    "major": "数字媒体技术",
+    "examCategory": "文理兼招",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "zjtie-gqz-sc",
+    "level": "高起专",
+    "school": "浙江经济职业技术学院",
+    "major": "市场营销",
+    "examCategory": "文理兼招",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-3a88db8d1c1105df",
+    "level": "高起专",
+    "school": "浙江经济职业技术学院",
+    "major": "智能控制技术",
+    "examCategory": "文理兼招",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-7d0ad62a1ff0819a",
+    "level": "高起专",
+    "school": "浙江经济职业技术学院",
+    "major": "中小企业创业与经营",
+    "examCategory": "文理兼招",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "zjtie-gqz-wlw",
+    "level": "高起专",
+    "school": "浙江经济职业技术学院",
+    "major": "物联网应用技术",
+    "examCategory": "理工类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-fd6113fcdd9d5e9f",
+    "level": "高起专",
+    "school": "浙江经济职业技术学院",
+    "major": "汽车检测与维修技术",
+    "examCategory": "理工类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-7175161735856eca",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "工商管理",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-d8361aa682818165",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "会计学",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-fe243555df1d95e6",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "人力资源管理",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-ea026fcd9fe9df9b",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "财务管理",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-7979f448a863f9a2",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "市场营销",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-9339245f6e3b72be",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "电子商务",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-ef0b6fc85408aaf0",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "行政管理",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-a5f920e84f6ba83d",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "酒店管理",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-578686311c6bb358",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "旅游管理",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-c45a290b076a6003",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "工程管理",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-da414fd796f4ecd2",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "物流管理",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-2e90e2fc02ba4c4f",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "国际经济与贸易",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-70bb4640bc07df8e",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "金融学",
+    "examCategory": "文史类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-19211ebeb341637e",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "英语",
+    "examCategory": "文史类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-8f52694df0d581ba",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "汉语言文学",
+    "examCategory": "文史类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-6f2ca15bf75dc9ba",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "法学",
+    "examCategory": "法学类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-45393c1e272dc415",
+    "level": "专升本",
+    "school": "浙江工商大学",
+    "major": "社会工作",
+    "examCategory": "法学类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "hdu-zsb-fx",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "法学",
+    "examCategory": "法学类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "hdu-zsb-jx",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "机械设计制造及其自动化",
+    "examCategory": "理工类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-6f8f9f0b3b2c1a07",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "车辆工程",
+    "examCategory": "理工类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "hdu-zsb-dq",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "电气工程及其自动化",
+    "examCategory": "理工类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "hdu-zsb-dzxx",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "电子信息工程",
+    "examCategory": "理工类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "hdu-zsb-jsj",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "计算机科学与技术",
+    "examCategory": "理工类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-6ee4b0345b74b959",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "软件工程",
+    "examCategory": "理工类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-6622b52d1d89a523",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "网络工程",
+    "examCategory": "理工类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-a71a9045e26170fc",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "数字媒体技术",
+    "examCategory": "理工类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "hdu-zsb-ai",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "人工智能",
+    "examCategory": "理工类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-e3735f89aea731f0",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "智能制造工程",
+    "examCategory": "理工类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-d2de07fa46e30fa1",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "信息管理与信息系统",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-4a34eab791c76566",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "金融学",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-e321b08faf95457b",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "工商管理(含人力资源、物流管理、电子商务方向)",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "hdu-zsb-kj",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "会计学",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "program-b1f64b25e7e86093",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "财务管理",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "hdu-gqb-jsj",
+    "level": "高起本",
+    "school": "杭州电子科技大学",
+    "major": "计算机科学与技术",
+    "examCategory": "理工类",
+    "duration": "5年",
+    "studyMode": "非脱产",
+    "fee": 680
+  },
+  {
+    "id": "hdu-gqb-gs",
+    "level": "高起本",
+    "school": "杭州电子科技大学",
+    "major": "工商管理",
+    "examCategory": "文史类",
+    "duration": "5年",
+    "studyMode": "非脱产",
+    "fee": 680
+  }
 ];
 
 class ApiError extends Error {
@@ -71,6 +531,8 @@ const publicRegistration = value => value ? {
   studyMode: value.studyMode,
   fee: value.fee,
   status: value.status,
+  paymentStatus: value.paymentStatus || 'unknown',
+  demoPaidAt: value.demoPaidAt || '',
   reviewRemark: value.reviewRemark || '',
   revision: value.revision,
   createdAt: value.createdAt,
@@ -185,8 +647,6 @@ async function prepareMaterialUpload(student, data) {
 }
 
 async function saveMaterial(student, data) {
-  const registration = await findRegistration(student._id);
-  if (!registration) throw new ApiError('请先提交报名信息，再上传报名材料', 'REGISTRATION_REQUIRED');
   const kind = text(data.kind, 20);
   const definition = materialKinds[kind];
   const fileId = text(data.fileId, 600);
@@ -196,20 +656,67 @@ async function saveMaterial(student, data) {
   if (!definition || !fileId || !fileId.includes(expectedPath)) throw new ApiError('上传文件路径无效', 'INVALID_INPUT');
   if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_MATERIAL_SIZE) throw new ApiError('文件大小不能超过10MB', 'INVALID_INPUT');
   const uploadedAt = isoNow();
-  const previous = registration.materials && registration.materials[kind];
   const material = { fileId, fileName: fileName || definition.label, size, status: 'pending', uploadedAt };
-  await db.collection('registrations').doc(student._id).update({
-    data: {
-      materials: { ...(registration.materials || {}), [kind]: material },
-      materialsUpdatedAt: uploadedAt,
-      updatedAt: uploadedAt
-    }
+  const saved = await withTransaction(db, async transaction => {
+    const registration = await transactionRegistration(transaction, student._id);
+    const previous = registration.materials && registration.materials[kind];
+    if (previous && previous.fileId === fileId) return { material: previous, repeated: true };
+    await transaction.collection('registrations').doc(student._id).update({
+      data: {
+        [`materials.${kind}`]: material,
+        materialsUpdatedAt: uploadedAt,
+        updatedAt: uploadedAt,
+        status: 'pending',
+        reviewRemark: '',
+        revision: (registration.revision || 0) + 1
+      }
+    });
+    await addNotification(transaction, {
+      type: 'material_uploaded', audience: 'admin', registrationId: student._id,
+      registrationCreatedAt: registration.createdAt, version: fileId, kind, createdAt: uploadedAt
+    });
+    return { material, previous };
   });
+  const previous = saved.previous;
   if (previous && previous.fileId && previous.fileId !== fileId) {
     try { await cloud.deleteFile({ fileList: [previous.fileId] }); } catch (error) { console.error('old material cleanup failed', error.errCode || error.message); }
   }
-  await audit(student._id, 'material_uploaded', { kind, size });
-  return { material: { kind, ...material } };
+  if (!saved.repeated) await audit(student._id, 'material_uploaded', { kind, size });
+  return { material: { kind, ...saved.material } };
+}
+
+async function transactionRegistration(transaction, id) {
+  try {
+    const registration = (await transaction.collection('registrations').doc(id).get()).data;
+    if (registration) return registration;
+  } catch (error) {
+    if (!isMissing(error)) throw error;
+  }
+  throw new ApiError('请先提交报名信息', 'REGISTRATION_REQUIRED');
+}
+
+async function completeDemoPayment(student) {
+  const registration = await withTransaction(db, async transaction => {
+    const current = await transactionRegistration(transaction, student._id);
+    if (current.paymentStatus === 'demo_completed') return current;
+    if (current.paymentStatus !== 'pending') throw new ApiError('该记录不支持模拟缴费', 'INVALID_STATE');
+    const paidAt = isoNow();
+    const next = { paymentStatus: 'demo_completed', demoPaidAt: paidAt, updatedAt: paidAt };
+    await transaction.collection('registrations').doc(student._id).update({ data: next });
+    await addNotification(transaction, {
+      type: 'registration_completed', audience: 'admin', registrationId: student._id,
+      registrationCreatedAt: current.createdAt, version: current.createdAt, createdAt: paidAt
+    });
+    return { ...current, ...next };
+  });
+  return { registration: publicRegistration(registration) };
+}
+
+function studentInbox(student) {
+  return createInbox(db, {
+    audience: 'student', readerId: student._id, recipientId: student._id,
+    registrationScope: { 'registration.studentId': student._id }
+  }, (message, code) => new ApiError(message, code));
 }
 
 async function login(openId) {
@@ -238,6 +745,9 @@ async function handle(action, data, openId) {
   if (action === 'legacyStatus') throw new ApiError('旧查询码暂未迁移到云端，请联系机构工作人员', 'NOT_MIGRATED');
 
   const student = await requireStudent(openId);
+  if (action === 'completeDemoPayment') return completeDemoPayment(student);
+  if (action === 'notifications') return studentInbox(student).list();
+  if (action === 'readNotification') return studentInbox(student).read(data.notificationId);
   if (action === 'me') return { student: publicStudent(student) };
   if (action === 'mine') return { registration: publicRegistration(await findRegistration(student._id)) };
   if (action === 'materials') {
@@ -256,7 +766,7 @@ async function handle(action, data, openId) {
     if (existing) throw new ApiError('该账号已经提交过报名信息', 'ALREADY_REGISTERED');
     const clean = validateRegistration(data);
     const now = isoNow();
-    const registration = { _id: student._id, studentId: student._id, ...clean, status: 'pending', revision: 1, consentVersion: 'cloud-v1', createdAt: now, updatedAt: now };
+    const registration = { _id: student._id, studentId: student._id, ...clean, status: 'pending', paymentStatus: 'pending', revision: 1, consentVersion: 'cloud-v1', createdAt: now, updatedAt: now };
     await db.collection('registrations').add({ data: registration });
     await audit(student._id, 'registration_created', { programId: clean.programId });
     return { registration: publicRegistration(registration) };

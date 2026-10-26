@@ -34,3 +34,8 @@
 .progress-text { color: #718096; font-size: 22rpx; }
 .entry-arrow { color: #9ba8ba; font-size: 48rpx; }
 .logout-button { margin-top: 36rpx; color: #63738a; background: transparent; }
+.notification-card { border: 1rpx solid #cbdcff; }
+.notification-badge { display: inline-block; min-width: 32rpx; padding: 2rpx 10rpx; border-radius: 999rpx; background: #d83b3b; color: #fff; font-size: 23rpx; text-align: center; }
+.notification-row { padding: 20rpx 0; border-bottom: 1rpx solid #edf1f6; }
+.notification-title { display: block; font-weight: 700; margin-bottom: 8rpx; }
+.notification-row button { margin-top: 16rpx; }

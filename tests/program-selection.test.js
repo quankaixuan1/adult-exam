@@ -1,0 +1,65 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+const programs = require('../miniprogram/data/programs');
+const root = path.resolve(__dirname, '..');
+
+function page(draft = { name: '测试' }) {
+  let definition;
+  const wx = {
+    getStorageSync: () => draft,
+    setStorageSync: (_, value) => { draft = value; },
+    navigateTo: () => {}, redirectTo: () => {}
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/program/program.js'), 'utf8'), {
+    require: () => programs, Page: value => { definition = value; }, wx
+  });
+  definition.setData = function (value, callback) { Object.assign(this.data, value); callback?.(); };
+  definition.onLoad();
+  return definition;
+}
+const choose = (p, method, index) => p[method]({ detail: { value: String(index) } });
+
+test('frontend and backend catalogs agree and have unique IDs', () => {
+  const source = fs.readFileSync(path.join(root, 'cloudfunctions/student-api/index.js'), 'utf8');
+  const server = JSON.parse(source.match(/const programs = (\[[\s\S]*?\n\]);/)[1]);
+  assert.deepEqual(server, programs);
+  assert.equal(programs.length, 48);
+  assert.equal(new Set(programs.map(p => p.id)).size, programs.length);
+});
+
+test('all programs are reachable through level, school, major', () => {
+  for (const program of programs) {
+    const p = page();
+    assert.equal(p.data.schools.length, 0);
+    choose(p, 'chooseLevel', p.data.levels.indexOf(program.level));
+    assert.ok(p.data.schools.every(s => programs.some(item => item.level === program.level && item.school === s)));
+    choose(p, 'chooseSchool', p.data.schools.indexOf(program.school));
+    assert.ok(p.data.majors.every(item => item.level === program.level && item.school === program.school));
+    choose(p, 'chooseMajor', p.data.majors.indexOf(program));
+    assert.equal(p.data.program.id, program.id);
+    choose(p, 'chooseSchool', 0);
+    assert.equal(p.data.program, null);
+    choose(p, 'chooseLevel', 0);
+    assert.equal(p.data.school, '');
+    assert.equal(p.data.majors.length, 0);
+    assert.equal(p.data.program, null);
+  }
+});
+
+test('restores valid drafts and rejects removed program selections', () => {
+  for (const program of programs) {
+    const p = page({ name: '测试', program, consent: true });
+    assert.equal(p.data.program.id, program.id);
+    assert.ok(p.data.schools.includes(program.school));
+    assert.ok(p.data.majors.includes(program));
+    assert.equal(p.data.levels.length, 3);
+  }
+  const p = page({ name: '测试', program: { id: 'hdu-zsb-rl' }, consent: true });
+  assert.equal(p.data.program, null);
+  assert.equal(p.data.school, '');
+  p.submit();
+  assert.match(p.data.error, /请依次选择/);
+});

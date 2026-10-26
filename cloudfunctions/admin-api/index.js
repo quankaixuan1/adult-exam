@@ -1,4 +1,5 @@
 const cloud = require("wx-server-sdk");
+const { withTransaction, addNotification, createInbox } = require('./notifications');
 const {
   randomBytes,
   createHash,
@@ -188,16 +189,16 @@ function requireSuper(admin) {
   if (!isSuper(admin))
     throw new ApiError("仅主管理员可以管理账号权限", "FORBIDDEN");
 }
-function scope(admin) {
+function scope(admin, prefix = "") {
   if (isSuper(admin)) return {};
   const rules = [];
   if ((admin.schools || []).length)
-    rules.push({ school: command.in(admin.schools) });
+    rules.push({ [`${prefix}school`]: command.in(admin.schools) });
   if ((admin.classIds || []).length)
-    rules.push({ classId: command.in(admin.classIds) });
+    rules.push({ [`${prefix}classId`]: command.in(admin.classIds) });
   return rules.length
     ? command.or(rules)
-    : { _id: "__no_authorized_records__" };
+    : { [`${prefix}_id`]: "__no_authorized_records__" };
 }
 async function scopedRegistration(admin, id) {
   if (!/^[a-f0-9]{64}$/.test(id || ""))
@@ -507,27 +508,44 @@ async function review(admin, data) {
     typeof data.remark === "string" ? data.remark.trim().slice(0, 500) : "";
   if (data.status === "rejected" && !remark)
     throw new ApiError("请填写需要补充或修改的内容", "INVALID_INPUT");
+  if (!Number.isSafeInteger(data.revision)) {
+    throw new ApiError("请重新打开报名详情后审核", "REVISION_CONFLICT");
+  }
   const updatedAt = isoNow();
-  const result = await db
-    .collection("registrations")
-    .doc(data.registrationId)
-    .update({
-      data: {
-        status: data.status,
-        reviewRemark: remark,
-        reviewedAt: updatedAt,
-        reviewedBy: admin._id,
-        updatedAt,
-        revision: command.inc(1),
-      },
+  await withTransaction(db, async transaction => {
+    const current = (await transaction.collection('registrations').doc(data.registrationId).get()).data;
+    if (!current || (!isSuper(admin) && !(admin.schools || []).includes(current.school) && !(admin.classIds || []).includes(current.classId))) {
+      throw new ApiError('记录不存在或不在授权范围内', 'FORBIDDEN');
+    }
+    if (current.revision !== data.revision) {
+      throw new ApiError('报名资料或材料已更新，请重新打开详情后审核', 'REVISION_CONFLICT');
+    }
+    if (current.status === data.status && (current.reviewRemark || '') === remark) return;
+    const revision = current.revision + 1;
+    await transaction.collection('registrations').doc(data.registrationId).update({
+      data: { status: data.status, reviewRemark: remark, reviewedAt: updatedAt,
+        reviewedBy: admin._id, updatedAt, revision }
     });
-  if (!result.stats || result.stats.updated !== 1)
-    throw new ApiError("未找到报名记录", "NOT_FOUND");
-  await audit(admin, "registration_reviewed", {
-    registrationId: data.registrationId,
-    status: data.status,
+    if (current.studentId) {
+      await addNotification(transaction, {
+        type: 'registration_reviewed', audience: 'student', recipientId: current.studentId,
+        registrationId: current._id, version: revision, status: data.status,
+        registrationCreatedAt: current.createdAt, remark, createdAt: updatedAt
+      });
+    }
+    await transaction.collection('audit_logs').doc(digest(`review-audit:${current._id}:${revision}`)).set({
+      data: { actorType: 'admin', actorId: admin._id, action: 'registration_reviewed',
+        details: { registrationId: current._id, status: data.status }, createdAt: updatedAt }
+    });
   });
   return { ok: true };
+}
+
+function adminInbox(admin) {
+  requirePermission(admin, 'registrations.view');
+  return createInbox(db, {
+    audience: 'admin', readerId: admin._id, registrationScope: scope(admin, 'registration.')
+  }, (message, code) => new ApiError(message, code));
 }
 
 async function materialLink(admin, data) {
@@ -567,6 +585,8 @@ async function handle(action, data) {
   if (action === "bootstrap") return bootstrap(data);
   if (action === "login") return login(data);
   const admin = await authenticate(data.token);
+  if (action === 'notifications') return adminInbox(admin).list();
+  if (action === 'readNotification') return adminInbox(admin).read(data.notificationId);
   if (action === "registrationFilters") return registrationFilters(admin);
   if (action === "accounts") return accountList(admin);
   if (action === "saveAccount") return accountSave(admin, data);

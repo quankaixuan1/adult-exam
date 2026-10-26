@@ -133,6 +133,37 @@ function registration(overrides = {}) {
 }
 const admin = { _id: 'staff-a', permissions: ['registrations.view', 'registrations.review'], schools: ['学校A'], classIds: [] };
 
+test('custom programs submit with server-owned fees and reject invalid fields', async () => {
+  const base = {
+    name: '测试考生', phone: '13800000000', idNumber: '11010519491231002X', gender: '女', ethnicity: '汉',
+    education: '高中', currentAddress: '测试地址', politicalStatus: '群众', consent: true, programId: 'other'
+  };
+  for (const level of ['高起专', '专升本', '高起本']) {
+    const db = memoryDatabase({ students: [{ _id: studentId }] });
+    const api = loadApi('student-api', db);
+    const result = await api.main({ action: 'register', data: { ...base, fee: 1,
+      customProgram: { level, school: ' 测试大学 ', major: ' 测试专业 ', fee: 1, duration: '1年', studyMode: '伪造' }
+    } });
+    assert.equal(result.ok, true);
+    const saved = result.data.registration;
+    assert.equal(saved.school, '测试大学');
+    assert.equal(saved.major, '测试专业');
+    assert.equal(saved.fee, level === '高起本' ? 680 : 600);
+    assert.equal(saved.duration, level === '高起本' ? '5年' : '2.5年');
+    assert.equal(saved.studyMode, '非脱产');
+    assert.equal(saved.examCategory, '—');
+    assert.equal(db.rows('registrations')[0].examCategory, '—');
+  }
+  for (const customProgram of [undefined, { level: '其它', school: '学校', major: '专业' },
+    { level: '专升本', school: ' ', major: '专业' }, { level: '专升本', school: '学校', major: '' },
+    { level: '专升本', school: '学'.repeat(101), major: '专业' }]) {
+    const db = memoryDatabase({ students: [{ _id: studentId }] });
+    const result = await loadApi('student-api', db).main({ action: 'register', data: { ...base, customProgram } });
+    assert.equal(result.ok, false);
+    assert.equal(db.rows('registrations').length, 0);
+  }
+});
+
 test('saving a registration does not notify; simulated payment notifies exactly once', async () => {
   const db = memoryDatabase({ students: [{ _id: studentId }] });
   const student = loadApi('student-api', db), backend = loadApi('admin-api', db);

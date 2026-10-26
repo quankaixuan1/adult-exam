@@ -35,7 +35,7 @@ test('all programs are reachable through level, school, major', () => {
     const p = page();
     assert.equal(p.data.schools.length, 0);
     choose(p, 'chooseLevel', p.data.levels.indexOf(program.level));
-    assert.ok(p.data.schools.every(s => programs.some(item => item.level === program.level && item.school === s)));
+    assert.ok(p.data.schools.every(s => s === '其它' || programs.some(item => item.level === program.level && item.school === s)));
     choose(p, 'chooseSchool', p.data.schools.indexOf(program.school));
     assert.ok(p.data.majors.every(item => item.level === program.level && item.school === program.school));
     choose(p, 'chooseMajor', p.data.majors.indexOf(program));
@@ -46,6 +46,35 @@ test('all programs are reachable through level, school, major', () => {
     assert.equal(p.data.school, '');
     assert.equal(p.data.majors.length, 0);
     assert.equal(p.data.program, null);
+  }
+});
+
+test('custom schools use level pricing, validate names, restore drafts and reset on changes', () => {
+  for (const level of ['高起专', '专升本', '高起本']) {
+    const p = page();
+    choose(p, 'chooseLevel', p.data.levels.indexOf(level));
+    choose(p, 'chooseSchool', p.data.schools.indexOf('其它'));
+    assert.equal(p.data.program.fee, level === '高起本' ? 680 : 600);
+    assert.equal(p.data.program.duration, level === '高起本' ? '5年' : '2.5年');
+    p.submit();
+    assert.match(p.data.error, /请填写学校名称/);
+    p.inputCustomSchool({ detail: { value: ' 测试大学 ' } });
+    p.inputCustomMajor({ detail: { value: ' 测试专业 ' } });
+    assert.equal(p.data.program.school, '测试大学');
+    assert.equal(p.data.program.major, '测试专业');
+    assert.equal(p.data.program.studyMode, '非脱产');
+    assert.equal(p.data.program.examCategory, '—');
+    const restored = page({ name: '测试', program: p.data.program, consent: true });
+    assert.equal(restored.data.school, '其它');
+    assert.equal(restored.data.customSchool, '测试大学');
+    restored.submit();
+    assert.equal(restored.data.error, '');
+    choose(p, 'chooseSchool', 0);
+    assert.equal(p.data.customSchool, '');
+    assert.equal(p.data.program, null);
+    choose(restored, 'chooseLevel', 0);
+    assert.equal(restored.data.customMajor, '');
+    assert.equal(restored.data.program, null);
   }
 });
 

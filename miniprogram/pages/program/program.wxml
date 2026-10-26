@@ -7,7 +7,9 @@
     <text class="section">学校与专业</text>
     <view class="form-row"><text class="label">报考层次<text class="required">*</text></text><picker class="form-picker" range="{{levels}}" bindchange="chooseLevel"><view class="picker">{{level || '请选择报考层次'}}</view></picker></view>
     <view class="form-row"><text class="label">报考学校<text class="required">*</text></text><picker class="form-picker" range="{{schools}}" bindchange="chooseSchool" disabled="{{!level}}"><view class="picker {{!level ? 'disabled' : ''}}">{{school || (level ? '请选择学校' : '请先选择报考层次')}}</view></picker></view>
-    <view class="form-row"><text class="label">报考专业<text class="required">*</text></text><picker class="form-picker" range="{{majors}}" range-key="major" bindchange="chooseMajor" disabled="{{!school}}"><view class="picker {{!school ? 'disabled' : ''}}">{{program ? program.major : (school ? '请选择专业' : '请先选择学校')}}</view></picker></view>
+    <view wx:if="{{school === '其它'}}" class="form-row"><text class="label">学校名称<text class="required">*</text></text><input class="custom-input" value="{{customSchool}}" bindinput="inputCustomSchool" maxlength="100" placeholder="请输入学校名称" /></view>
+    <view wx:if="{{school === '其它'}}" class="form-row"><text class="label">专业名称<text class="required">*</text></text><input class="custom-input" value="{{customMajor}}" bindinput="inputCustomMajor" maxlength="100" placeholder="请输入专业名称" /></view>
+    <view wx:else class="form-row"><text class="label">报考专业<text class="required">*</text></text><picker class="form-picker" range="{{majors}}" range-key="major" bindchange="chooseMajor" disabled="{{!school}}"><view class="picker {{!school ? 'disabled' : ''}}">{{program ? program.major : (school ? '请选择专业' : '请先选择学校')}}</view></picker></view>
 
     <view wx:if="{{program}}" class="program-detail">
       <view class="summary-row"><text>学制</text><text>{{program.duration}}</text></view>

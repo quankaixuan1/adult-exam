@@ -13,7 +13,8 @@ Page({
     try {
       const current = (await api.me()).student;
       const draft = this.data.draft;
-      const result = await api.register({ ...draft, programId: draft.program.id, program: undefined, idNumberMasked: undefined, consent: true }, current.id);
+      const customProgram = draft.program.id === 'other' ? { level: draft.program.level, school: draft.program.school, major: draft.program.major } : undefined;
+      const result = await api.register({ ...draft, programId: draft.program.id, customProgram, program: undefined, idNumberMasked: undefined, consent: true }, current.id);
       wx.setStorageSync('demoPaymentPreview', result.registration);
       wx.redirectTo({ url: '/pages/payment/payment' });
     } catch (e) { this.setData({ error: e.message, busy: false }); }

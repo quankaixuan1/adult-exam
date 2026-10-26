@@ -529,6 +529,7 @@ const publicRegistration = value => value ? {
   major: value.major,
   duration: value.duration,
   studyMode: value.studyMode,
+  examCategory: value.examCategory || '—',
   fee: value.fee,
   status: value.status,
   paymentStatus: value.paymentStatus || 'unknown',
@@ -582,7 +583,16 @@ function validateRegistration(data, currentName) {
   if (!/^1[3-9]\d{9}$/.test(phone)) throw new ApiError('请填写有效的本人手机号', 'INVALID_INPUT');
   if ((emergencyName || emergencyPhone) && (!emergencyName || !/^1[3-9]\d{9}$/.test(emergencyPhone))) throw new ApiError('第二联系人如填写，请同时填写姓名和有效手机号', 'INVALID_INPUT');
   if (!education || !currentAddress || !politicalStatus) throw new ApiError('请完整填写学历、现居住地址和政治面貌', 'INVALID_INPUT');
-  const program = programs.find(item => item.id === data.programId);
+  let program = programs.find(item => item.id === data.programId);
+  if (data.programId === 'other') {
+    const custom = data.customProgram || {};
+    const level = text(custom.level, 10);
+    const school = text(custom.school, 100);
+    const major = text(custom.major, 100);
+    const rule = programs.find(item => item.level === level);
+    if (!rule || !school || !major) throw new ApiError('请选择有效层次并填写学校名称和专业名称（各不超过100字）', 'INVALID_INPUT');
+    program = { id: 'other', level, school, major, duration: rule.duration, fee: rule.fee, studyMode: '非脱产', examCategory: '—' };
+  }
   if (!program) throw new ApiError('请选择当前开放的学校和专业', 'INVALID_INPUT');
   if (data.consent !== true) throw new ApiError('请先阅读并同意信息使用说明', 'INVALID_INPUT');
   return {

@@ -44,6 +44,7 @@ Page({
   saveDraft() {
     const saved = wx.getStorageSync(DRAFT_KEY) || {};
     wx.setStorageSync(DRAFT_KEY, {
+      campus: saved.campus || '', teacherId: saved.teacherId || '', teacherName: saved.teacherName || '',
       ...this.data.form,
       program: saved.program || null,
       consent: saved.consent === true

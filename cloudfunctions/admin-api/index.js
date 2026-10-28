@@ -10,6 +10,8 @@ const {
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const command = db.command;
+const organization = require('./organization');
+const { isSuper, membership, isManagement, canAccess, scopeFor } = require('./access');
 const SESSION_MS = 8 * 60 * 60 * 1000;
 
 class ApiError extends Error {
@@ -165,15 +167,20 @@ async function login(data) {
 
 const permissionOptions = [
   "registrations.view",
+  "registrations.create",
+  "registrations.edit",
   "registrations.review",
   "materials.view",
 ];
-const isSuper = (admin) => admin._id === "primary";
 function publicAdmin(admin) {
   return {
     id: admin._id,
     username: admin.username,
     displayName: admin.displayName,
+    memberId: admin.memberId || '',
+    position: membership(admin)?.position || '',
+    campus: membership(admin)?.campus || '',
+    dataScope: isManagement(admin) ? 'all' : membership(admin)?.position === 'campusLead' ? 'campus' : membership(admin) ? 'own' : 'legacy',
     role: isSuper(admin) ? "super" : "staff",
     permissions: isSuper(admin) ? permissionOptions : admin.permissions || [],
     schools: admin.schools || [],
@@ -190,15 +197,7 @@ function requireSuper(admin) {
     throw new ApiError("仅主管理员可以管理账号权限", "FORBIDDEN");
 }
 function scope(admin, prefix = "") {
-  if (isSuper(admin)) return {};
-  const rules = [];
-  if ((admin.schools || []).length)
-    rules.push({ [`${prefix}school`]: command.in(admin.schools) });
-  if ((admin.classIds || []).length)
-    rules.push({ [`${prefix}classId`]: command.in(admin.classIds) });
-  return rules.length
-    ? command.or(rules)
-    : { [`${prefix}_id`]: "__no_authorized_records__" };
+  return scopeFor(admin, command, prefix);
 }
 async function scopedRegistration(admin, id) {
   if (!/^[a-f0-9]{64}$/.test(id || ""))
@@ -225,6 +224,7 @@ async function accountList(admin) {
     .end();
   return {
     accounts,
+    organization: { campuses: organization.campuses, members: organization.members, positions: organization.positions },
     schools: [
       ...new Set(options.list.map((v) => v._id.school).filter(Boolean)),
     ].sort(),
@@ -247,6 +247,10 @@ async function accountSave(admin, data) {
     throw new ApiError("主管理员不能在此修改", "INVALID_INPUT");
   const id = digest(`admin:${username}`);
   const current = await adminDocument(id);
+  const memberId = typeof data.memberId === 'string' ? data.memberId : '';
+  const member = organization.memberById(memberId);
+  if (memberId && !member) throw new ApiError('请选择有效的组织成员', 'INVALID_INPUT');
+  if (!member && !current) throw new ApiError('新账号必须绑定组织成员', 'INVALID_INPUT');
   const displayName =
     typeof data.displayName === "string"
       ? data.displayName.trim().slice(0, 40)
@@ -272,14 +276,17 @@ async function accountSave(admin, data) {
     username,
     displayName,
     role: "staff",
+    memberId,
     permissions: strings(data.permissions).filter((p) =>
       permissionOptions.includes(p),
     ),
-    schools: strings(data.schools),
-    classIds: strings(data.classIds),
+    schools: member ? [] : strings(data.schools),
+    classIds: member ? [] : strings(data.classIds),
     disabled: data.disabled === true,
     updatedAt: isoNow(),
-    sessionVersion: ((current && current.sessionVersion) || 0) + 1,
+    // A fresh generation also prevents old sessions reviving after deletion
+    // and recreation of the same username (which has the same document ID).
+    sessionVersion: randomBytes(16).toString('hex'),
   };
   if (data.password) {
     next.passwordSalt = randomBytes(16).toString("hex");
@@ -292,10 +299,33 @@ async function accountSave(admin, data) {
       .add({ data: { _id: id, ...next, createdAt: isoNow() } });
   await audit(admin, "account_saved", {
     accountId: id,
+    memberId: next.memberId,
     permissions: next.permissions,
     schools: next.schools,
     classIds: next.classIds,
     disabled: next.disabled,
+  });
+  return { ok: true };
+}
+
+async function accountDelete(admin, data) {
+  requireSuper(admin);
+  const id = data.accountId;
+  if (id === 'primary' || id === admin._id) throw new ApiError('不能删除主管理员账号', 'FORBIDDEN');
+  if (typeof id !== 'string' || !/^[a-f0-9]{64}$/.test(id)) throw new ApiError('账号参数无效', 'INVALID_INPUT');
+  await withTransaction(db, async transaction => {
+    let target;
+    try { target = (await transaction.collection('admins').doc(id).get()).data; }
+    catch (error) {
+      if (!/not exist|DOCUMENT_NOT_FOUND/i.test(error.errMsg || error.message || '')) throw error;
+    }
+    if (!target) throw new ApiError('账号已删除或不存在，请刷新列表', 'NOT_FOUND');
+    if (data.username !== target.username) throw new ApiError('账号信息已变化，请刷新后重试', 'INVALID_INPUT');
+    await transaction.collection('admins').doc(id).remove();
+    await transaction.collection('audit_logs').doc(`account-delete-${randomBytes(16).toString('hex')}`).set({ data: {
+      actorType: 'admin', actorId: admin._id, action: 'account_deleted',
+      details: { accountId: id, username: target.username, memberId: target.memberId || '' }, createdAt: isoNow()
+    } });
   });
   return { ok: true };
 }
@@ -325,13 +355,18 @@ function publicRegistration(item) {
     source: item.source || "miniprogram",
     sourceRow: item.sourceRow || null,
     schoolOriginal: item.schoolOriginal || "",
+    isExamPrepClass: item.isExamPrepClass === true,
     teacherName: item.teacherName || "",
+    teacherId: item.teacherId || '',
+    campus: item.campus || '',
+    programId: item.programId || '',
     studentNo: item.studentNo || "",
     paymentStatus: item.paymentStatus || "unknown",
     major: item.major,
     fee: item.fee,
     duration: item.duration || "",
     studyMode: item.studyMode || "",
+    examCategory: item.examCategory || '—',
     materials: Object.fromEntries(
       ["idFront", "idBack", "education", "photo"]
         .filter((kind) => item.materials && item.materials[kind])
@@ -356,7 +391,7 @@ function publicRegistration(item) {
   };
 }
 
-const registrationFilterFields = ["school", "major", "level", "classId"];
+const registrationFilterFields = ["school", "major", "level", "classId", "campus", "teacherName"];
 
 async function registrationFilters(admin) {
   requirePermission(admin, "registrations.view");
@@ -377,6 +412,8 @@ async function registrationFilters(admin) {
           major: "$major",
           level: "$level",
           classId: "$classId",
+          campus: "$campus",
+          teacherName: "$teacherName",
         },
       })
       .sort({
@@ -425,6 +462,10 @@ async function dashboard(admin, data) {
   if (status) {
     conditions.push({ status });
   }
+  if (data.isExamPrepClass !== undefined && data.isExamPrepClass !== '') {
+    if (!['true', 'false'].includes(data.isExamPrepClass)) throw new ApiError('高考复习班筛选无效', 'INVALID_INPUT');
+    conditions.push({ isExamPrepClass: data.isExamPrepClass === 'true' });
+  }
 
   for (const field of registrationFilterFields) {
     if (data[field] !== undefined && typeof data[field] !== "string") {
@@ -447,7 +488,7 @@ async function dashboard(admin, data) {
     // 转义正则特殊字符，把用户输入作为普通文本搜索
     const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-    const fields = ["name", "phone", "school", "level", "major"];
+    const fields = ["name", "phone", "school", "level", "major", "campus", "teacherName"];
 
     conditions.push(
       command.or(
@@ -514,7 +555,7 @@ async function review(admin, data) {
   const updatedAt = isoNow();
   await withTransaction(db, async transaction => {
     const current = (await transaction.collection('registrations').doc(data.registrationId).get()).data;
-    if (!current || (!isSuper(admin) && !(admin.schools || []).includes(current.school) && !(admin.classIds || []).includes(current.classId))) {
+    if (!current || !canAccess(admin, current)) {
       throw new ApiError('记录不存在或不在授权范围内', 'FORBIDDEN');
     }
     if (current.revision !== data.revision) {
@@ -579,17 +620,23 @@ async function materialLink(admin, data) {
   return { url: file.tempFileURL };
 }
 
+const registrationManagement = require('./registration-management')({ db, ApiError, requirePermission, scopedRegistration, scope, publicRegistration, withTransaction });
+
 async function handle(action, data) {
   if (action === "bootstrapStatus")
     return { initialized: Boolean(await adminDocument()) };
   if (action === "bootstrap") return bootstrap(data);
   if (action === "login") return login(data);
   const admin = await authenticate(data.token);
+  if (action === 'registrationOptions') return registrationManagement.options(admin);
+  if (action === 'saveRegistration') return registrationManagement.save(admin, data);
+  if (action === 'registrationStatistics') return registrationManagement.statistics(admin);
   if (action === 'notifications') return adminInbox(admin).list();
   if (action === 'readNotification') return adminInbox(admin).read(data.notificationId);
   if (action === "registrationFilters") return registrationFilters(admin);
   if (action === "accounts") return accountList(admin);
   if (action === "saveAccount") return accountSave(admin, data);
+  if (action === 'deleteAccount') return accountDelete(admin, data);
   if (action === "materialLink") return materialLink(admin, data);
   if (action === "registrationDetail") {
     if (!/^[a-f0-9]{64}$/.test(data.registrationId || ""))

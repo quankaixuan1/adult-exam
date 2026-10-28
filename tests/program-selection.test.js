@@ -14,13 +14,27 @@ function page(draft = { name: '测试' }) {
     navigateTo: () => {}, redirectTo: () => {}
   };
   vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/program/program.js'), 'utf8'), {
-    require: () => programs, Page: value => { definition = value; }, wx
+    require: name => name.includes('organization') ? require('../miniprogram/data/organization') : programs, Page: value => { definition = value; }, wx
   });
   definition.setData = function (value, callback) { Object.assign(this.data, value); callback?.(); };
   definition.onLoad();
   return definition;
 }
 const choose = (p, method, index) => p[method]({ detail: { value: String(index) } });
+
+test('campus and teacher are independent for cross-campus enrollment and restored from draft', () => {
+  const p = page({ name: '测试', program: programs[0], consent: true });
+  p.submit();
+  assert.match(p.data.error, /请选择报名校区和报名老师/);
+  choose(p, 'chooseCampus', p.data.campuses.indexOf('下沙校区'));
+  choose(p, 'chooseTeacher', p.data.teachers.findIndex(t => t.id === 'wenyi-rong'));
+  p.submit();
+  assert.equal(p.data.error, '');
+  const restored = page({ name: '测试', program: programs[0], campus: p.data.campus, teacherId: p.data.teacherId });
+  assert.equal(restored.data.campus, '下沙校区');
+  assert.equal(restored.data.teacherId, 'wenyi-rong');
+  assert.match(restored.data.teacherLabel, /文一校区/);
+});
 
 test('frontend and backend catalogs agree and have unique IDs', () => {
   const source = fs.readFileSync(path.join(root, 'cloudfunctions/student-api/index.js'), 'utf8');
@@ -64,7 +78,7 @@ test('custom schools use level pricing, validate names, restore drafts and reset
     assert.equal(p.data.program.major, '测试专业');
     assert.equal(p.data.program.studyMode, '非脱产');
     assert.equal(p.data.program.examCategory, '—');
-    const restored = page({ name: '测试', program: p.data.program, consent: true });
+    const restored = page({ name: '测试', program: p.data.program, consent: true, campus: '下沙校区', teacherId: 'wenyi-rong' });
     assert.equal(restored.data.school, '其它');
     assert.equal(restored.data.customSchool, '测试大学');
     restored.submit();

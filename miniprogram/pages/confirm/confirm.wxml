@@ -10,6 +10,9 @@
     <view class="summary-row"><text>报考专业</text><text>{{draft.program.major}}</text></view><view class="summary-row"><text>学制</text><text>{{draft.program.duration}}</text></view>
     <view class="summary-row"><text>学习形式</text><text>{{draft.program.studyMode}}</text></view>
     <view class="summary-row"><text>考试科目</text><text>{{draft.program.examCategory}}</text></view>
+    <view class="summary-row"><text>高考复习班</text><text>{{draft.program.isExamPrepClass ? '是' : '否'}}</text></view>
+    <view class="summary-row"><text>报名校区</text><text>{{draft.campus || '—'}}</text></view>
+    <view class="summary-row"><text>报名老师</text><text>{{draft.teacherName || '—'}}</text></view>
   </view>
   <view class="fee-card"><text>应缴金额</text><text class="price">¥{{draft.program.fee}}</text><text class="muted">请在缴费页面核对费用明细</text></view>
   <view class="notice">提交后可在“我的账号”继续上传身份证、学历证明和证件照。</view>

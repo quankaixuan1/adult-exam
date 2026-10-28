@@ -41,7 +41,7 @@ function memoryDatabase(seed = {}) {
   let version = 0, counter = 0;
   const db = {
     failNotifications: false,
-    command: { and: list => ({ $and: list }), or: list => ({ $or: list }), in: list => ({ $in: list }), exists: value => ({ $exists: value }), aggregate: { eq: values => ({ $eq: values }) } },
+    command: { and: list => ({ $and: list }), or: list => ({ $or: list }), in: list => ({ $in: list }), exists: value => ({ $exists: value }), aggregate: { eq: values => ({ $eq: values }), sum: value => ({ $sum: value }) } },
     rows: name => [...state.get(name).values()].map(clone),
     mutate(name, id, changes) { Object.assign(state.get(name).get(id), changes); version += 1; },
     remove(name, id) { state.get(name).delete(id); version += 1; }
@@ -54,6 +54,7 @@ function memoryDatabase(seed = {}) {
       doc(id) {
         return {
           async get() { return { data: store().has(id) ? clone(store().get(id)) : null }; },
+          async remove() { const removed = store().delete(id); changed(); return { stats: { removed: removed ? 1 : 0 } }; },
           async set({ data }) { check(); store().set(id, { ...clone(data), _id: id }); changed(); return { stats: { created: 1 } }; },
           async update({ data }) {
             check(); const row = store().get(id);
@@ -70,13 +71,18 @@ function memoryDatabase(seed = {}) {
         return { _id: id };
       },
       where(rule) {
-        let size = 100;
-        return { limit(n) { size = n; return this; }, async get() { return { data: [...store().values()].filter(row => matches(row, rule)).slice(0, size).map(clone) }; } };
+        let size = 100, offset = 0; const orders = [];
+        return {
+          limit(n) { size = n; return this; }, skip(n) { offset = n; return this; }, orderBy(key, direction) { orders.push([key, direction === 'asc' ? 1 : -1]); return this; },
+          async count() { return { total: [...store().values()].filter(row => matches(row, rule)).length }; },
+          async update({ data }) { let updated = 0; for (const row of store().values()) if (matches(row, rule)) { Object.assign(row, clone(data)); updated++; } if (updated) changed(); return { stats: { updated } }; },
+          async get() { return { data: sorted([...store().values()].filter(row => matches(row, rule)), orders).slice(offset, offset + size).map(clone) }; }
+        };
       },
       aggregate() {
         const stages = [];
         const pipeline = {};
-        for (const method of ['match', 'lookup', 'unwind', 'addFields', 'sort', 'limit', 'project', 'count']) {
+        for (const method of ['match', 'lookup', 'unwind', 'addFields', 'sort', 'skip', 'group', 'limit', 'project', 'count']) {
           pipeline[method] = value => { stages.push([method, value]); return pipeline; };
         }
         pipeline.end = async () => {
@@ -89,6 +95,17 @@ function memoryDatabase(seed = {}) {
               rows = rows.flatMap(row => get(row, key).map(item => ({ ...row, [key]: item })));
             }
             if (method === 'sort') rows = sorted(rows, Object.entries(value));
+            if (method === 'skip') rows = rows.slice(value);
+            if (method === 'group') {
+              const grouped = new Map();
+              for (const row of rows) {
+                const id = typeof value._id === 'string' ? get(row, value._id.slice(1)) : Object.fromEntries(Object.entries(value._id).map(([k,v]) => [k, get(row, v.slice(1))]));
+                const key = JSON.stringify(id);
+                if (!grouped.has(key)) grouped.set(key, { _id: id, ...(value.count ? { count: 0 } : {}) });
+                if (value.count) grouped.get(key).count++;
+              }
+              rows = [...grouped.values()];
+            }
             if (method === 'addFields') rows = rows.map(row => ({ ...row, ...Object.fromEntries(Object.entries(value).map(([key, expression]) => {
               const [a, b] = expression.$eq.map(field => get(row, field.slice(1)));
               return [key, a === b];
@@ -122,7 +139,7 @@ function loadApi(name, db) {
     require: name => name === 'wx-server-sdk' ? cloud : name.startsWith('./') ? require(path.join(directory, name)) : require(name),
     exports: {}, Buffer, process: { env: { PII_ENCRYPTION_KEY: '1'.repeat(64) } }, console: { error() {} }
   });
-  const exposed = name === 'student-api' ? 'handle, completeDemoPayment, saveMaterial, studentInbox' : 'review, adminInbox';
+  const exposed = name === 'student-api' ? 'handle, completeDemoPayment, saveMaterial, studentInbox' : 'review, adminInbox, registrationManagement, dashboard, registrationFilters, scopedRegistration, materialLink, accountSave, accountDelete, authenticate, publicAdmin';
   vm.runInContext(fs.readFileSync(path.join(directory, 'index.js'), 'utf8') + `\nthis.testApi = { ${exposed} };`, context);
   return { ...context.testApi, main: context.exports.main };
 }
@@ -132,6 +149,187 @@ function registration(overrides = {}) {
     paymentStatus: 'pending', createdAt: '2026-10-23T00:00:00.000Z', materials: {}, ...overrides };
 }
 const admin = { _id: 'staff-a', permissions: ['registrations.view', 'registrations.review'], schools: ['学校A'], classIds: [] };
+
+const organizationAdmin = memberId => ({ _id: `account-${memberId}`, memberId, permissions: ['registrations.view', 'registrations.edit', 'registrations.create', 'registrations.review', 'materials.view'] });
+const manualRegistration = (overrides = {}) => ({ name: '测试考生', phone: '13800000000', level: '专升本', school: '自填大学', major: '测试专业', campus: '下沙校区', teacherId: 'wenyi-rong', ...overrides });
+
+test('admin input normalizes school, prep flag and level before saving', async () => {
+  const db = memoryDatabase();
+  const result = await loadApi('admin-api', db).registrationManagement.save({ _id: 'primary' }, manualRegistration({ school: '杭电（高复）', level: '高升本' }));
+  assert.equal(result.registration.school, '杭州电子科技大学');
+  assert.equal(result.registration.level, '高起本');
+  assert.equal(result.registration.isExamPrepClass, true);
+  assert.equal(result.registration.fee, 680);
+  assert.equal(db.rows('registrations')[0].schoolOriginal, '杭电（高复）');
+});
+
+test('prep-class filter uses a boolean and does not widen account scope', async () => {
+  const db = memoryDatabase({ registrations: [
+    registration({ teacherId: 'wenyi-rong', isExamPrepClass: true }),
+    registration({ _id: 'b'.repeat(64), teacherId: 'wenyi-rong', isExamPrepClass: false }),
+    registration({ _id: 'c'.repeat(64), teacherId: 'wenyi-liu', isExamPrepClass: true })
+  ] });
+  const api = loadApi('admin-api', db);
+  const actor = organizationAdmin('wenyi-rong');
+  const result = await api.dashboard(actor, { isExamPrepClass: 'true' });
+  assert.deepEqual(Array.from(result.registrations, row => row.id), [studentId]);
+  const nonPrep = await api.dashboard(actor, { isExamPrepClass: 'false' });
+  assert.deepEqual(Array.from(nonPrep.registrations, row => row.id), ['b'.repeat(64)]);
+  await assert.rejects(api.dashboard(actor, { isExamPrepClass: 'invalid' }), { code: 'INVALID_INPUT' });
+});
+
+test('student custom school aliases normalize and retain the prep flag', async () => {
+  const db = memoryDatabase({ students: [{ _id: studentId }] });
+  const result = await loadApi('student-api', db).main({ action: 'register', data: {
+    name: '测试考生', phone: '13800000000', idNumber: '11010519491231002X', gender: '女', ethnicity: '汉',
+    education: '高中', currentAddress: '测试地址', politicalStatus: '群众', consent: true, programId: 'other',
+    customProgram: { school: '杭医(高复)', level: '高升本', major: '测试专业' }
+  } });
+  assert.equal(result.ok, true);
+  assert.equal(result.data.registration.school, '杭州医学院');
+  assert.equal(result.data.registration.level, '高起本');
+  assert.equal(result.data.registration.isExamPrepClass, true);
+});
+
+test('cross-campus registration belongs to the signed-in teacher and edits cannot transfer ownership', async () => {
+  const db = memoryDatabase();
+  const api = loadApi('admin-api', db);
+  const teacher = organizationAdmin('wenyi-rong');
+  const result = await api.registrationManagement.save(teacher, manualRegistration({ teacherId: 'xiasha-ke', fee: 1 }));
+  const saved = result.registration;
+  assert.equal(saved.teacherId, 'wenyi-rong');
+  assert.equal(saved.campus, '下沙校区');
+  assert.equal(saved.fee, 600);
+  assert.equal(saved.paymentStatus, 'pending');
+  assert.equal(db.rows('notification_events').length, 0);
+  const edited = await api.registrationManagement.save(teacher, { ...saved, registrationId: saved.id, phone: '13900000000' });
+  assert.equal(edited.registration.phone, '13900000000');
+  assert.equal(edited.registration.revision, 2);
+  await assert.rejects(api.registrationManagement.save(teacher, { ...edited.registration, registrationId: saved.id, teacherId: 'xiasha-ke' }), { code: 'FORBIDDEN' });
+  await assert.rejects(api.registrationManagement.save(teacher, { ...edited.registration, registrationId: saved.id, campus: '文一校区' }), { code: 'FORBIDDEN' });
+  await assert.rejects(api.registrationManagement.save(teacher, { ...saved, registrationId: saved.id }), { code: 'REVISION_CONFLICT' });
+  const manager = organizationAdmin('finance');
+  await api.registrationManagement.save(manager, { ...edited.registration, registrationId: saved.id, teacherId: 'xiasha-ke' });
+  await assert.rejects(api.scopedRegistration(teacher, saved.id), { code: 'FORBIDDEN' });
+  assert.equal((await api.scopedRegistration(organizationAdmin('xiasha-ke'), saved.id)).teacherId, 'xiasha-ke');
+});
+
+test('list, filters, statistics, details and materials obey organizational scope', async () => {
+  const records = [
+    registration({ campus: '下沙校区', teacherId: 'wenyi-rong', teacherName: '荣健', school: '学校1', level: '专升本' }),
+    registration({ _id: 'b'.repeat(64), campus: '文一校区', teacherId: 'wenyi-liu', teacherName: '刘慧敏', school: '学校2', level: '高起本' }),
+    registration({ _id: 'c'.repeat(64), campus: '城西校区', teacherId: 'chengxi-tu', teacherName: '屠老师', school: '学校3', level: '高起专' }),
+    registration({ _id: 'd'.repeat(64), campus: '经济校区', teacherId: 'jingji-tu', teacherName: '屠老师', school: '学校4', level: '高起专' }),
+    registration({ _id: 'e'.repeat(64), school: '未分配院校', level: '高起专' })
+  ];
+  const db = memoryDatabase({ registrations: records });
+  const api = loadApi('admin-api', db);
+  for (const [memberId, ids] of [
+    ['wenyi-rong', [studentId]], ['xiasha-zhou', [studentId]], ['wenyi-deng', ['b'.repeat(64)]],
+    ['chengxi-tu', ['c'.repeat(64)]], ['jingji-tu', ['d'.repeat(64)]], ['principal', records.map(r => r._id)]
+  ]) {
+    const actor = organizationAdmin(memberId);
+    const dashboard = await api.dashboard(actor, {});
+    assert.deepEqual(Array.from(dashboard.registrations, r => r.id).sort(), ids.sort());
+    assert.equal(dashboard.stats.total, ids.length);
+    const filters = await api.registrationFilters(actor);
+    assert.deepEqual(Array.from(filters.school).sort(), records.filter(r => ids.includes(r._id)).map(r => r.school).sort());
+    const statistics = await api.registrationManagement.statistics(actor);
+    for (const rows of Object.values(statistics.groups)) assert.equal(rows.reduce((sum, row) => sum + row.count, 0), ids.length);
+    for (const record of records.filter(r => !ids.includes(r._id))) {
+      await assert.rejects(api.scopedRegistration(actor, record._id), { code: 'FORBIDDEN' });
+      await assert.rejects(api.materialLink(actor, { registrationId: record._id, kind: 'photo' }), { code: 'FORBIDDEN' });
+      await assert.rejects(api.review(actor, { registrationId: record._id, revision: 1, status: 'approved' }), { code: 'FORBIDDEN' });
+    }
+  }
+});
+
+test('organizational notifications follow reassignment and no-permission accounts cannot edit', async () => {
+  const db = memoryDatabase({ registrations: [registration({ campus: '下沙校区', teacherId: 'wenyi-rong', paymentStatus: 'pending' })] });
+  await loadApi('student-api', db).completeDemoPayment({ _id: studentId });
+  const api = loadApi('admin-api', db);
+  assert.equal((await api.adminInbox(organizationAdmin('wenyi-rong')).list()).unreadTotal, 1);
+  assert.equal((await api.adminInbox(organizationAdmin('xiasha-zhou')).list()).unreadTotal, 1);
+  assert.equal((await api.adminInbox(organizationAdmin('wenyi-deng')).list()).unreadTotal, 0);
+  db.mutate('registrations', studentId, { teacherId: 'xiasha-ke' });
+  assert.equal((await api.adminInbox(organizationAdmin('wenyi-rong')).list()).unreadTotal, 0);
+  assert.equal((await api.adminInbox(organizationAdmin('xiasha-ke')).list()).unreadTotal, 1);
+  await assert.rejects(api.registrationManagement.save({ ...organizationAdmin('xiasha-ke'), permissions: ['registrations.view'] }, manualRegistration()), { code: 'FORBIDDEN' });
+  await assert.rejects(api.accountSave(organizationAdmin('principal'), {}), { code: 'FORBIDDEN' });
+});
+
+test('student signup stores a cross-campus owner and rejects unknown affiliation', async () => {
+  const base = { name: '测试考生', phone: '13800000000', idNumber: '11010519491231002X', gender: '女', ethnicity: '汉', education: '高中', currentAddress: '测试地址', politicalStatus: '群众', consent: true, programId: 'hdu-gqb-gs' };
+  const db = memoryDatabase({ students: [{ _id: studentId }] });
+  const api = loadApi('student-api', db);
+  const invalid = await api.main({ action: 'register', data: { ...base, campus: '下沙校区', teacherId: 'unknown' } });
+  assert.equal(invalid.ok, false);
+  const valid = await api.main({ action: 'register', data: { ...base, campus: '下沙校区', teacherId: 'wenyi-rong' } });
+  assert.equal(valid.ok, true);
+  assert.equal(valid.data.registration.teacherId, 'wenyi-rong');
+  assert.equal(valid.data.registration.campus, '下沙校区');
+  const updated = await api.main({ action: 'update', data: { ...base, revision: 1, campus: '城西校区', teacherId: 'chengxi-tu' } });
+  assert.equal(updated.ok, true);
+  assert.equal(updated.data.registration.teacherId, 'wenyi-rong');
+  assert.equal(updated.data.registration.campus, '下沙校区');
+});
+
+test('account binding derives scope and invalidates existing sessions', async () => {
+  const db = memoryDatabase({ admins: [{ _id: 'primary', username: 'root' }] });
+  const api = loadApi('admin-api', db);
+  const primary = { _id: 'primary' };
+  const data = { username: 'test_teacher', displayName: '测试老师', memberId: 'wenyi-deng', password: 'Test-only-password-123', permissions: ['registrations.view', 'registrations.edit', 'admin.all'], schools: ['外校'], classIds: ['外班'] };
+  await api.accountSave(primary, data);
+  let account = db.rows('admins').find(row => row.username === data.username);
+  const firstVersion = account.sessionVersion;
+  assert.match(firstVersion, /^[a-f0-9]{32}$/);
+  assert.equal(account.schools.length, 0);
+  assert.equal(account.classIds.length, 0);
+  assert.equal(account.permissions.includes('admin.all'), false);
+  assert.equal(api.publicAdmin(account).dataScope, 'campus');
+  assert.equal(api.publicAdmin(account).campus, '文一校区');
+  assert.equal(api.publicAdmin(account).passwordHash, undefined);
+  await api.accountSave(primary, { ...data, memberId: 'finance', password: '' });
+  account = db.rows('admins').find(row => row.username === data.username);
+  assert.notEqual(account.sessionVersion, firstVersion);
+  assert.equal(api.publicAdmin(account).dataScope, 'all');
+  await assert.rejects(api.accountSave(primary, { ...data, memberId: 'unknown' }), { code: 'INVALID_INPUT' });
+});
+
+test('delete account protects primary, keeps registrations and permanently revokes old sessions', async () => {
+  const username = 'delete_test';
+  const id = createHash('sha256').update(`admin:${username}`).digest('hex');
+  const token = 'adm_' + 'a'.repeat(64);
+  const sessionId = createHash('sha256').update(`admin-session:${token}`).digest('hex');
+  const db = memoryDatabase({
+    admins: [{ _id: 'primary', username: 'root' }, { _id: id, username, memberId: 'wenyi-rong', sessionVersion: 1 }],
+    admin_sessions: [{ _id: sessionId, adminId: id, sessionVersion: 1, expiresAt: new Date(Date.now() + 60000).toISOString() }],
+    registrations: [registration({ teacherId: 'wenyi-rong' })]
+  });
+  const api = loadApi('admin-api', db);
+  await api.authenticate(token);
+  await assert.rejects(api.accountDelete(organizationAdmin('principal'), { accountId: id, username }), { code: 'FORBIDDEN' });
+  await assert.rejects(api.accountDelete({ _id: 'primary' }, { accountId: 'primary', username: 'root' }), { code: 'FORBIDDEN' });
+  await assert.rejects(api.accountDelete({ _id: 'primary' }, { accountId: id, username: 'wrong' }), { code: 'INVALID_INPUT' });
+  const before = db.rows('registrations');
+  await api.accountDelete({ _id: 'primary' }, { accountId: id, username });
+  assert.equal(db.rows('admins').some(a => a._id === id), false);
+  assert.deepEqual(db.rows('registrations'), before);
+  assert.equal(db.rows('audit_logs').filter(a => a.action === 'account_deleted').length, 1);
+  await assert.rejects(api.authenticate(token), { code: 'LOGIN_REQUIRED' });
+  await assert.rejects(api.accountDelete({ _id: 'primary' }, { accountId: id, username }), { code: 'NOT_FOUND' });
+  await api.accountSave({ _id: 'primary' }, { username, displayName: '测试老师', password: 'Test-only-password-123', memberId: 'wenyi-rong', permissions: ['registrations.view'] });
+  await assert.rejects(api.authenticate(token), { code: 'LOGIN_REQUIRED' });
+});
+
+test('write permission is rechecked inside transaction after reassignment', async () => {
+  const db = memoryDatabase({ registrations: [registration({ ...manualRegistration(), teacherId: 'wenyi-rong' })] });
+  const originalStart = db.startTransaction;
+  db.startTransaction = async () => { db.mutate('registrations', studentId, { teacherId: 'xiasha-ke' }); return originalStart(); };
+  const api = loadApi('admin-api', db);
+  await assert.rejects(api.registrationManagement.save(organizationAdmin('wenyi-rong'), { ...manualRegistration(), registrationId: studentId, revision: 1 }), { code: 'FORBIDDEN' });
+  assert.equal(db.rows('audit_logs').length, 0);
+});
 
 test('custom programs submit with server-owned fees and reject invalid fields', async () => {
   const base = {

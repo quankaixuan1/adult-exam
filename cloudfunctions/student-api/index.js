@@ -2,6 +2,8 @@ const cloud = require('wx-server-sdk');
 const { validateIdNumber } = require('./id-number');
 const { createHash, randomBytes, createCipheriv } = require('crypto');
 const { withTransaction, addNotification, createInbox } = require('./notifications');
+const organization = require('./organization');
+const { normalizeRegistration } = require('./registration-normalization');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
@@ -524,7 +526,11 @@ const publicRegistration = value => value ? {
   emergencyName: value.emergencyName,
   emergencyPhone: value.emergencyPhone,
   programId: value.programId,
+  campus: value.campus || '',
+  teacherId: value.teacherId || '',
+  teacherName: value.teacherName || '',
   school: value.school,
+  isExamPrepClass: value.isExamPrepClass === true,
   level: value.level,
   major: value.major,
   duration: value.duration,
@@ -586,12 +592,14 @@ function validateRegistration(data, currentName) {
   let program = programs.find(item => item.id === data.programId);
   if (data.programId === 'other') {
     const custom = data.customProgram || {};
-    const level = text(custom.level, 10);
-    const school = text(custom.school, 100);
+    let normalized;
+    try { normalized = normalizeRegistration({ level: text(custom.level, 10), school: text(custom.school, 100) }); }
+    catch (error) { throw new ApiError(error.message, 'INVALID_INPUT'); }
+    const { level, school, isExamPrepClass } = normalized;
     const major = text(custom.major, 100);
     const rule = programs.find(item => item.level === level);
     if (!rule || !school || !major) throw new ApiError('请选择有效层次并填写学校名称和专业名称（各不超过100字）', 'INVALID_INPUT');
-    program = { id: 'other', level, school, major, duration: rule.duration, fee: rule.fee, studyMode: '非脱产', examCategory: '—' };
+    program = { id: 'other', level, school, major, duration: rule.duration, fee: rule.fee, studyMode: '非脱产', examCategory: '—', isExamPrepClass, ...(school !== text(custom.school, 100) ? { schoolOriginal: text(custom.school, 100) } : {}) };
   }
   if (!program) throw new ApiError('请选择当前开放的学校和专业', 'INVALID_INPUT');
   if (data.consent !== true) throw new ApiError('请先阅读并同意信息使用说明', 'INVALID_INPUT');
@@ -603,7 +611,7 @@ function validateRegistration(data, currentName) {
     education, workUnit: text(data.workUnit, 100), currentAddress, politicalStatus,
     unionMember: data.unionMember === true, veteran: data.veteran === true,
     emergencyName, emergencyPhone, wechatContact: true,
-    programId: program.id, ...program
+    programId: program.id, isExamPrepClass: false, ...program
   };
 }
 
@@ -775,6 +783,12 @@ async function handle(action, data, openId) {
     const existing = await findRegistration(student._id);
     if (existing) throw new ApiError('该账号已经提交过报名信息', 'ALREADY_REGISTERED');
     const clean = validateRegistration(data);
+    // 兼容旧客户端：没有归属的报名仅对全校区管理岗位可见，待其分配。
+    if (data.campus || data.teacherId) {
+      const teacher = organization.memberById(data.teacherId);
+      if (!organization.campuses.includes(data.campus) || !teacher) throw new ApiError('请选择有效的报名校区和报名老师', 'INVALID_INPUT');
+      Object.assign(clean, { campus: data.campus, teacherId: teacher.id, teacherName: teacher.name });
+    }
     const now = isoNow();
     const registration = { _id: student._id, studentId: student._id, ...clean, status: 'pending', paymentStatus: 'pending', revision: 1, consentVersion: 'cloud-v1', createdAt: now, updatedAt: now };
     await db.collection('registrations').add({ data: registration });
@@ -787,6 +801,7 @@ async function handle(action, data, openId) {
     if (!Number.isSafeInteger(data.revision) || data.revision !== current.revision) throw new ApiError('报名资料已更新，请返回后重新打开修改页面', 'REVISION_CONFLICT');
     const clean = validateRegistration(data, current.name);
     const next = { ...clean, status: 'pending', revision: current.revision + 1, updatedAt: isoNow() };
+    next.isExamPrepClass = current.isExamPrepClass === true || clean.isExamPrepClass === true;
     const result = await db.collection('registrations').where({ _id: student._id, revision: current.revision }).update({ data: next });
     if (!result.stats || result.stats.updated !== 1) throw new ApiError('报名资料已更新，请返回后重新打开修改页面', 'REVISION_CONFLICT');
     await audit(student._id, 'registration_updated', { programId: clean.programId, revision: next.revision });

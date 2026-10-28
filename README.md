@@ -19,11 +19,36 @@
 
 后端功能修改 cloudfunctions 中的代码，并单独上传部署；编译小程序不会更新云函数。在微信开发者工具中右键对应云函数，选择“上传并部署：云端安装依赖”。使用 CLI 时进入实际函数目录后执行代码更新，更新后回读核对代码，避免目录参数与实际打包路径不一致。
 
-学校专业前端列表位于 miniprogram/data/programs.js，云端校验列表位于 cloudfunctions/student-api/index.js，变更时需同步两处。
+学校专业前端列表位于 miniprogram/data/programs.js，学生云端校验列表位于 cloudfunctions/student-api/index.js，后台录入列表位于 cloudfunctions/admin-api/programs.js，变更时需同步三处。
+
+## 组织架构与报名归属
+
+按组织图配置文一、下沙、城西、经济四个校区，成员名单位于 cloudfunctions/admin-api/organization.js；student-api/organization.js 和 miniprogram/data/organization.js 是独立部署所需副本，修改时须同步。财务负责人、财务部老师暂以岗位名显示。成员使用固定 memberId，两个校区的“屠老师”分别编号，不按姓名判断权限。
+
+- 校长、招生负责人、财务负责人、财务部老师：全部校区报名数据。
+- 校区负责人：本校区全部报名，以及本人名下的跨校区报名。
+- 报名老师：本人名下全部报名，允许跨校区新增。
+- 账号维护仍仅主管理员可操作，数据范围与功能权限分别校验。组织成员默认拥有查看统计、录入、修改和材料查看权限；报名老师默认不授予审核权限。
+
+主管理员在“组织与账号”中为成员设置登录账号、密码和功能权限；现有账号可绑定组织成员。绑定后按组织权限生效，旧学校/班级授权不再叠加，权限更改会使旧会话失效。未绑定的历史账号暂保留原授权，需逐个绑定才能完成迁移。代码更新不会自动创建登录账号或改写线上归属。
+
+主管理员可在账号列表删除普通账号，操作前会显示确认提示。主管理员自身不可删除。删除与审计记录在同一事务内完成，报名记录、组织成员和历史审计保留。认证时重新检查账号是否存在，因此删除后旧会话不能再请求接口；重新创建同名账号使用新的随机会话版本，旧会话不会恢复。
+
+报名记录分别保存 campus（报名校区）和 teacherId（所属成员），teacherName 仅用于展示。小程序新表单可选择校区及实际接待老师；旧客户端未提供归属的记录保留待分配。历史 teacherName 不会自动匹配成员，避免同名误授权。管理岗位可在报名列表“修改”中分配校区和老师；普通老师及校区负责人不能转移记录归属。老师新增时，服务端强制归本人名下，不信任客户端传入的老师编号。
+
+后台新增报名支持基本资料及自填院校专业，不要求补造历史身份证资料，未填资料按缺失展示。修改资料有版本冲突校验和事务审计；资料变化恢复待审核，仅调整校区、老师或班级不撤销审核。未改变志愿时保留原费用，改变志愿时按层次重新计算学制和报名费。保存不会模拟付款。
+
+列表、详情、筛选、统计分析、材料链接、审核、修改及站内消息都按同一组织范围校验。统计分析覆盖当前账号全部授权记录，独立于列表的临时筛选，分别按校区、老师、层次和院校汇总。
+
+部署时上传完整 admin-api（含 access.js、organization.js、programs.js、registration-management.js、notifications.js），上传完整 student-api（含 organization.js），构建并发布 admin/dist，再编译发布小程序。无需新增集合；根据云端提示为 campus、teacherId 和列表排序字段创建索引。验证：`node --test tests/*.test.js`；构建：`npm run build --prefix admin`。
 
 电脑后台双击 start-admin.command 启动本地预览，build-admin.command 生成 admin/dist；构建后需另行上传静态托管才会更新线上后台。
 
 ## 数据与权限
+
+院校简称与高复标记清洗规则位于各云函数的 registration-normalization.js（小程序有相同副本）。包含杭电、杭医、商大、浙工大、浙经院、浙科的校名分别归并为对应院校全称，学校名称中的“高复”拆为 isExamPrepClass 布尔字段，后台显示“高考复习班”；高升本统一为高起本。只处理学校名称，不根据学生姓名或老师姓名推断班别。原学校和层次分别保存在 schoolOriginal、levelOriginal，未知院校不推测归属。
+
+已有数据清洗工具：`node scripts/normalize-registration-data.js preview` 读取线上指定字段并将备份与变更计划保存至已忽略的 backups/；`node scripts/normalize-registration-data.js apply backups/<snapshot>.json` 按计划执行，带并发版本校验、回读验证和已完成记录跳过。工具同时预览旧账号学校简称授权的对应变化，执行前需确认这部分授权范围变更。新增、修改报名入口也会应用清洗规则。部署需带上 registration-normalization.js。
 
 学生身份由云函数中的微信 OPENID 确定。students、registrations、audit_logs、admins、admin_sessions 等集合应禁止客户端直接读写，通过云函数校验权限。catalogs 为后续计划管理预留。
 

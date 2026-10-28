@@ -1,4 +1,5 @@
 const programs = require('../../data/programs');
+const organization = require('../../data/organization');
 const DRAFT_KEY = 'registrationFormDraft';
 
 Page({
@@ -12,6 +13,11 @@ Page({
     level: '',
     customSchool: '',
     customMajor: '',
+    campuses: organization.campuses,
+    teachers: organization.members.filter(item => item.campus || item.position === 'admissions').map(item => ({ ...item, label: `${item.name}（${item.campus || '招生负责人'}）` })),
+    campus: '',
+    teacherId: '',
+    teacherLabel: '',
     program: null,
     consent: false
   },
@@ -30,6 +36,8 @@ Page({
   unique(items) { return [...new Set(items)]; },
 
   restoreSelection(draft) {
+    const teacher = this.data.teachers.find(item => item.id === draft.teacherId);
+    this.setData({ campus: organization.campuses.includes(draft.campus) ? draft.campus : '', teacherId: teacher?.id || '', teacherLabel: teacher?.label || '' });
     if (draft.program && draft.program.id === 'other' && this.data.levels.includes(draft.program.level)) {
       const { level, school, major } = draft.program;
       this.setData({ level, school: '其它', schools: this.schoolsForLevel(level), customSchool: school || '', customMajor: major || '', consent: draft.consent === true });
@@ -66,7 +74,16 @@ Page({
 
   saveDraft() {
     const draft = wx.getStorageSync(DRAFT_KEY) || {};
-    wx.setStorageSync(DRAFT_KEY, { ...draft, program: this.data.program, consent: this.data.consent });
+    wx.setStorageSync(DRAFT_KEY, { ...draft, program: this.data.program, consent: this.data.consent, campus: this.data.campus, teacherId: this.data.teacherId, teacherName: this.data.teachers.find(item => item.id === this.data.teacherId)?.name || '' });
+  },
+
+  chooseCampus(e) {
+    this.setData({ campus: this.data.campuses[Number(e.detail.value)], error: '' }, () => this.saveDraft());
+  },
+
+  chooseTeacher(e) {
+    const teacher = this.data.teachers[Number(e.detail.value)];
+    if (teacher) this.setData({ teacherId: teacher.id, teacherLabel: teacher.label, error: '' }, () => this.saveDraft());
   },
 
   chooseSchool(e) {
@@ -110,6 +127,10 @@ Page({
     }
     if (!this.data.consent) {
       this.setData({ error: '请先阅读报名、调剂和隐私说明，并勾选同意。' });
+      return;
+    }
+    if (!this.data.campus || !this.data.teacherId) {
+      this.setData({ error: '请选择报名校区和报名老师。' });
       return;
     }
     this.saveDraft();

@@ -31,6 +31,8 @@ Page({
     this.restoreSelection(draft);
   },
 
+  back() { wx.navigateBack(); },
+
   onHide() { this.saveDraft(); },
   onUnload() { this.saveDraft(); },
   unique(items) { return [...new Set(items)]; },
@@ -129,10 +131,8 @@ Page({
       this.setData({ error: '请先阅读报名、调剂和隐私说明，并勾选同意。' });
       return;
     }
-    if (!this.data.campus || !this.data.teacherId) {
-      this.setData({ error: '请选择报名校区和报名老师。' });
-      return;
-    }
+    // 校区和老师选择已隐藏，清除旧草稿归属，待后台分配。
+    this.setData({ campus: '', teacherId: '', teacherLabel: '', error: '' });
     this.saveDraft();
     wx.navigateTo({ url: '/pages/confirm/confirm' });
   }

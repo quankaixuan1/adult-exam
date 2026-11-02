@@ -68,7 +68,7 @@ defineExpose({ refresh: load });
     <form class="account-form" @submit.prevent="save">
       <h3>{{ editing ? '修改账号' : '新增账号' }}</h3>
       <label>组织成员<select v-model="form.memberId" :required="!editing" @change="selectMember"><option value="">{{ editing ? '旧账号授权（尚未绑定）' : '请选择组织成员' }}</option><option v-for="member in organization.members" :key="member.id" :value="member.id">{{ member.name }} · {{ member.campus || '管理岗位' }} · {{ organization.positions[member.position] }}</option></select></label>
-      <label>登录账号<input v-model.trim="form.username" :disabled="editing" required pattern="[a-z0-9_-]{4,32}" placeholder="4–32位字母、数字、下划线或短横线"/></label>
+      <label>登录账号<input v-model.trim="form.username" :disabled="editing" required pattern="[a-z0-9_-]{2,32}" placeholder="2–32位字母、数字、下划线或短横线"/></label>
       <label>名称<input v-model.trim="form.displayName" required maxlength="40"/></label>
       <label>{{ editing ? '重置密码（留空保留原密码）' : '初始密码' }}<input v-model="form.password" type="password" :required="!editing" minlength="10" maxlength="128" autocomplete="new-password"/></label>
       <fieldset><legend>功能权限</legend><label v-for="(label,key) in permissions" :key="key" class="check"><input type="checkbox" v-model="form.permissions" :value="key"/>{{ label }}</label></fieldset>

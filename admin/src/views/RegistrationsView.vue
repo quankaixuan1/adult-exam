@@ -127,7 +127,7 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
       </div> -->
       <form class="toolbar" @submit.prevent="submitSearch">
         <div class="search-box">
-          <input v-model="search" maxlength="100" placeholder="搜索全部授权记录的姓名、手机号、学校、层次或专业" />
+          <input v-model="search" maxlength="100" placeholder="搜索全部授权记录的姓名或手机号" />
           <button class="primary" type="submit">搜索</button>
           <button class="outline" type="button" @click="resetSearch">重置</button>
         </div>

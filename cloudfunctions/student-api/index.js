@@ -538,7 +538,8 @@ const publicRegistration = value => value ? {
   examCategory: value.examCategory || '—',
   fee: value.fee,
   status: value.status,
-  paymentStatus: value.paymentStatus || 'unknown',
+  paymentStatus: value.paymentStatus || 'pending',
+  paymentRemark: value.paymentRemark || '',
   demoPaidAt: value.demoPaidAt || '',
   reviewRemark: value.reviewRemark || '',
   revision: value.revision,
@@ -677,11 +678,13 @@ async function saveMaterial(student, data) {
   const material = { fileId, fileName: fileName || definition.label, size, status: 'pending', uploadedAt };
   const saved = await withTransaction(db, async transaction => {
     const registration = await transactionRegistration(transaction, student._id);
+    if (kind === 'paymentProof' && ['teacher_pending', 'finance_pending', 'paid'].includes(registration.paymentStatus)) throw new ApiError('凭证正在审核或已确认到账，不能重复提交', 'INVALID_STATE');
     const previous = registration.materials && registration.materials[kind];
     if (previous && previous.fileId === fileId) return { material: previous, repeated: true };
     await transaction.collection('registrations').doc(student._id).update({
       data: {
         [`materials.${kind}`]: material,
+        ...(kind === 'paymentProof' ? { paymentStatus: 'teacher_pending', paymentRemark: '', paymentTeacherId: '', paymentFinanceId: '' } : {}),
         materialsUpdatedAt: uploadedAt,
         updatedAt: uploadedAt,
         status: 'pending',
@@ -763,7 +766,7 @@ async function handle(action, data, openId) {
   if (action === 'legacyStatus') throw new ApiError('旧查询码暂未迁移到云端，请联系机构工作人员', 'NOT_MIGRATED');
 
   const student = await requireStudent(openId);
-  if (action === 'completeDemoPayment') return completeDemoPayment(student);
+  if (action === 'completeDemoPayment' || action === 'resetDemo') throw new ApiError('请联系报名老师完成缴费', 'INVALID_STATE');
   if (action === 'notifications') return studentInbox(student).list();
   if (action === 'readNotification') return studentInbox(student).read(data.notificationId);
   if (action === 'me') return { student: publicStudent(student) };
@@ -791,7 +794,13 @@ async function handle(action, data, openId) {
     }
     const now = isoNow();
     const registration = { _id: student._id, studentId: student._id, ...clean, status: 'pending', paymentStatus: 'pending', revision: 1, consentVersion: 'cloud-v1', createdAt: now, updatedAt: now };
-    await db.collection('registrations').add({ data: registration });
+    await withTransaction(db, async transaction => {
+      await transaction.collection('registrations').add({ data: registration });
+      await addNotification(transaction, {
+        type: 'registration_completed', audience: 'admin', registrationId: student._id,
+        registrationCreatedAt: now, version: 'submitted', createdAt: now
+      });
+    });
     await audit(student._id, 'registration_created', { programId: clean.programId });
     return { registration: publicRegistration(registration) };
   }

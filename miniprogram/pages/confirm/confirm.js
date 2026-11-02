@@ -21,8 +21,7 @@ Page({
       const current = (await api.me()).student;
       const draft = this.data.draft;
       const customProgram = draft.program.id === 'other' ? { level: draft.program.level, school: draft.program.schoolOriginal || draft.program.school, major: draft.program.major } : undefined;
-      const result = await api.register({ ...draft, programId: draft.program.id, customProgram, program: undefined, idNumberMasked: undefined, consent: true }, current.id);
-      wx.setStorageSync('demoPaymentPreview', result.registration);
+      await api.register({ ...draft, campus: undefined, teacherId: undefined, teacherName: undefined, programId: draft.program.id, customProgram, program: undefined, idNumberMasked: undefined, consent: true }, current.id);
       wx.redirectTo({ url: '/pages/payment/payment' });
     } catch (e) { this.setData({ error: e.message, busy: false }); }
   }

@@ -19,7 +19,7 @@ function submit() { emit('submit', { ...authForm }); authForm.password = ''; aut
       <h2>{{ mode === 'bootstrap' ? '建立主管理员' : '欢迎回来' }}</h2>
       <p class="muted">{{ mode === 'bootstrap' ? '该步骤完成后不能再次自助初始化。' : '请输入管理账号继续。' }}</p>
       <form @submit.prevent="submit">
-        <label>账号<input v-model.trim="authForm.username" autocomplete="username" placeholder="4–32 位字母或数字" /></label>
+        <label>账号<input v-model.trim="authForm.username" autocomplete="username" placeholder="2–32 位字母或数字" /></label>
         <label v-if="mode === 'bootstrap'">显示名称<input v-model.trim="authForm.displayName" maxlength="40" /></label>
         <label>密码<input v-model="authForm.password" type="password" autocomplete="current-password" placeholder="至少 10 位" /></label>
         <label v-if="mode === 'bootstrap'">确认密码<input v-model="authForm.confirmPassword" type="password" autocomplete="new-password" /></label>

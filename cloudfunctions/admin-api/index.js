@@ -1,5 +1,9 @@
 const cloud = require("wx-server-sdk");
-const { withTransaction, addNotification, createInbox } = require('./notifications');
+const {
+  withTransaction,
+  addNotification,
+  createInbox,
+} = require("./notifications");
 const {
   randomBytes,
   createHash,
@@ -10,8 +14,14 @@ const {
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const command = db.command;
-const organization = require('./organization');
-const { isSuper, membership, isManagement, canAccess, scopeFor } = require('./access');
+const organization = require("./organization");
+const {
+  isSuper,
+  membership,
+  isManagement,
+  canAccess,
+  scopeFor,
+} = require("./access");
 const SESSION_MS = 8 * 60 * 60 * 1000;
 
 class ApiError extends Error {
@@ -108,9 +118,9 @@ async function bootstrap(data) {
   if (await adminDocument())
     throw new ApiError("管理员已经初始化", "ALREADY_INITIALIZED");
   const username = normalizeUsername(data.username);
-  if (!/^[a-z0-9_-]{4,32}$/.test(username))
+  if (!/^[a-z0-9_-]{2,32}$/.test(username))
     throw new ApiError(
-      "账号需为4至32位字母、数字、下划线或短横线",
+      "账号需为2至32位字母、数字、下划线或短横线",
       "INVALID_INPUT",
     );
   if (!validPassword(data.password))
@@ -177,10 +187,16 @@ function publicAdmin(admin) {
     id: admin._id,
     username: admin.username,
     displayName: admin.displayName,
-    memberId: admin.memberId || '',
-    position: membership(admin)?.position || '',
-    campus: membership(admin)?.campus || '',
-    dataScope: isManagement(admin) ? 'all' : membership(admin)?.position === 'campusLead' ? 'campus' : membership(admin) ? 'own' : 'legacy',
+    memberId: admin.memberId || "",
+    position: membership(admin)?.position || "",
+    campus: membership(admin)?.campus || "",
+    dataScope: isManagement(admin)
+      ? "all"
+      : membership(admin)?.position === "campusLead"
+        ? "campus"
+        : membership(admin)
+          ? "own"
+          : "legacy",
     role: isSuper(admin) ? "super" : "staff",
     permissions: isSuper(admin) ? permissionOptions : admin.permissions || [],
     schools: admin.schools || [],
@@ -224,7 +240,11 @@ async function accountList(admin) {
     .end();
   return {
     accounts,
-    organization: { campuses: organization.campuses, members: organization.members, positions: organization.positions },
+    organization: {
+      campuses: organization.campuses,
+      members: organization.members,
+      positions: organization.positions,
+    },
     schools: [
       ...new Set(options.list.map((v) => v._id.school).filter(Boolean)),
     ].sort(),
@@ -237,9 +257,9 @@ async function accountList(admin) {
 async function accountSave(admin, data) {
   requireSuper(admin);
   const username = normalizeUsername(data.username);
-  if (!/^[a-z0-9_-]{4,32}$/.test(username))
+  if (!/^[a-z0-9_-]{2,32}$/.test(username))
     throw new ApiError(
-      "账号需为4至32位字母、数字、下划线或短横线",
+      "账号需为2至32位字母、数字、下划线或短横线",
       "INVALID_INPUT",
     );
   const primary = await adminDocument();
@@ -247,10 +267,12 @@ async function accountSave(admin, data) {
     throw new ApiError("主管理员不能在此修改", "INVALID_INPUT");
   const id = digest(`admin:${username}`);
   const current = await adminDocument(id);
-  const memberId = typeof data.memberId === 'string' ? data.memberId : '';
+  const memberId = typeof data.memberId === "string" ? data.memberId : "";
   const member = organization.memberById(memberId);
-  if (memberId && !member) throw new ApiError('请选择有效的组织成员', 'INVALID_INPUT');
-  if (!member && !current) throw new ApiError('新账号必须绑定组织成员', 'INVALID_INPUT');
+  if (memberId && !member)
+    throw new ApiError("请选择有效的组织成员", "INVALID_INPUT");
+  if (!member && !current)
+    throw new ApiError("新账号必须绑定组织成员", "INVALID_INPUT");
   const displayName =
     typeof data.displayName === "string"
       ? data.displayName.trim().slice(0, 40)
@@ -286,7 +308,7 @@ async function accountSave(admin, data) {
     updatedAt: isoNow(),
     // A fresh generation also prevents old sessions reviving after deletion
     // and recreation of the same username (which has the same document ID).
-    sessionVersion: randomBytes(16).toString('hex'),
+    sessionVersion: randomBytes(16).toString("hex"),
   };
   if (data.password) {
     next.passwordSalt = randomBytes(16).toString("hex");
@@ -311,21 +333,43 @@ async function accountSave(admin, data) {
 async function accountDelete(admin, data) {
   requireSuper(admin);
   const id = data.accountId;
-  if (id === 'primary' || id === admin._id) throw new ApiError('不能删除主管理员账号', 'FORBIDDEN');
-  if (typeof id !== 'string' || !/^[a-f0-9]{64}$/.test(id)) throw new ApiError('账号参数无效', 'INVALID_INPUT');
-  await withTransaction(db, async transaction => {
+  if (id === "primary" || id === admin._id)
+    throw new ApiError("不能删除主管理员账号", "FORBIDDEN");
+  if (typeof id !== "string" || !/^[a-f0-9]{64}$/.test(id))
+    throw new ApiError("账号参数无效", "INVALID_INPUT");
+  await withTransaction(db, async (transaction) => {
     let target;
-    try { target = (await transaction.collection('admins').doc(id).get()).data; }
-    catch (error) {
-      if (!/not exist|DOCUMENT_NOT_FOUND/i.test(error.errMsg || error.message || '')) throw error;
+    try {
+      target = (await transaction.collection("admins").doc(id).get()).data;
+    } catch (error) {
+      if (
+        !/not exist|DOCUMENT_NOT_FOUND/i.test(
+          error.errMsg || error.message || "",
+        )
+      )
+        throw error;
     }
-    if (!target) throw new ApiError('账号已删除或不存在，请刷新列表', 'NOT_FOUND');
-    if (data.username !== target.username) throw new ApiError('账号信息已变化，请刷新后重试', 'INVALID_INPUT');
-    await transaction.collection('admins').doc(id).remove();
-    await transaction.collection('audit_logs').doc(`account-delete-${randomBytes(16).toString('hex')}`).set({ data: {
-      actorType: 'admin', actorId: admin._id, action: 'account_deleted',
-      details: { accountId: id, username: target.username, memberId: target.memberId || '' }, createdAt: isoNow()
-    } });
+    if (!target)
+      throw new ApiError("账号已删除或不存在，请刷新列表", "NOT_FOUND");
+    if (data.username !== target.username)
+      throw new ApiError("账号信息已变化，请刷新后重试", "INVALID_INPUT");
+    await transaction.collection("admins").doc(id).remove();
+    await transaction
+      .collection("audit_logs")
+      .doc(`account-delete-${randomBytes(16).toString("hex")}`)
+      .set({
+        data: {
+          actorType: "admin",
+          actorId: admin._id,
+          action: "account_deleted",
+          details: {
+            accountId: id,
+            username: target.username,
+            memberId: target.memberId || "",
+          },
+          createdAt: isoNow(),
+        },
+      });
   });
   return { ok: true };
 }
@@ -357,18 +401,19 @@ function publicRegistration(item) {
     schoolOriginal: item.schoolOriginal || "",
     isExamPrepClass: item.isExamPrepClass === true,
     teacherName: item.teacherName || "",
-    teacherId: item.teacherId || '',
-    campus: item.campus || '',
-    programId: item.programId || '',
+    teacherId: item.teacherId || "",
+    campus: item.campus || "",
+    programId: item.programId || "",
     studentNo: item.studentNo || "",
-    paymentStatus: item.paymentStatus || "unknown",
+    paymentStatus: item.paymentStatus || "pending",
+    paymentRemark: item.paymentRemark || "",
     major: item.major,
     fee: item.fee,
     duration: item.duration || "",
     studyMode: item.studyMode || "",
-    examCategory: item.examCategory || '—',
+    examCategory: item.examCategory || "—",
     materials: Object.fromEntries(
-      ["idFront", "idBack", "education", "photo"]
+      ["idFront", "idBack", "education", "photo", "paymentProof"]
         .filter((kind) => item.materials && item.materials[kind])
         .map((kind) => {
           const m = item.materials[kind];
@@ -391,7 +436,14 @@ function publicRegistration(item) {
   };
 }
 
-const registrationFilterFields = ["school", "major", "level", "classId", "campus", "teacherName"];
+const registrationFilterFields = [
+  "school",
+  "major",
+  "level",
+  "classId",
+  "campus",
+  "teacherName",
+];
 
 async function registrationFilters(admin) {
   requirePermission(admin, "registrations.view");
@@ -462,9 +514,10 @@ async function dashboard(admin, data) {
   if (status) {
     conditions.push({ status });
   }
-  if (data.isExamPrepClass !== undefined && data.isExamPrepClass !== '') {
-    if (!['true', 'false'].includes(data.isExamPrepClass)) throw new ApiError('高考复习班筛选无效', 'INVALID_INPUT');
-    conditions.push({ isExamPrepClass: data.isExamPrepClass === 'true' });
+  if (data.isExamPrepClass !== undefined && data.isExamPrepClass !== "") {
+    if (!["true", "false"].includes(data.isExamPrepClass))
+      throw new ApiError("高考复习班筛选无效", "INVALID_INPUT");
+    conditions.push({ isExamPrepClass: data.isExamPrepClass === "true" });
   }
 
   for (const field of registrationFilterFields) {
@@ -488,7 +541,7 @@ async function dashboard(admin, data) {
     // 转义正则特殊字符，把用户输入作为普通文本搜索
     const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-    const fields = ["name", "phone", "school", "level", "major", "campus", "teacherName"];
+    const fields = ["name", "phone"];
 
     conditions.push(
       command.or(
@@ -553,47 +606,165 @@ async function review(admin, data) {
     throw new ApiError("请重新打开报名详情后审核", "REVISION_CONFLICT");
   }
   const updatedAt = isoNow();
-  await withTransaction(db, async transaction => {
-    const current = (await transaction.collection('registrations').doc(data.registrationId).get()).data;
+  await withTransaction(db, async (transaction) => {
+    const current = (
+      await transaction
+        .collection("registrations")
+        .doc(data.registrationId)
+        .get()
+    ).data;
     if (!current || !canAccess(admin, current)) {
-      throw new ApiError('记录不存在或不在授权范围内', 'FORBIDDEN');
+      throw new ApiError("记录不存在或不在授权范围内", "FORBIDDEN");
     }
     if (current.revision !== data.revision) {
-      throw new ApiError('报名资料或材料已更新，请重新打开详情后审核', 'REVISION_CONFLICT');
+      throw new ApiError(
+        "报名资料或材料已更新，请重新打开详情后审核",
+        "REVISION_CONFLICT",
+      );
     }
-    if (current.status === data.status && (current.reviewRemark || '') === remark) return;
+    if (
+      current.status === data.status &&
+      (current.reviewRemark || "") === remark
+    )
+      return;
     const revision = current.revision + 1;
-    await transaction.collection('registrations').doc(data.registrationId).update({
-      data: { status: data.status, reviewRemark: remark, reviewedAt: updatedAt,
-        reviewedBy: admin._id, updatedAt, revision }
-    });
+    await transaction
+      .collection("registrations")
+      .doc(data.registrationId)
+      .update({
+        data: {
+          status: data.status,
+          reviewRemark: remark,
+          reviewedAt: updatedAt,
+          reviewedBy: admin._id,
+          updatedAt,
+          revision,
+        },
+      });
     if (current.studentId) {
       await addNotification(transaction, {
-        type: 'registration_reviewed', audience: 'student', recipientId: current.studentId,
-        registrationId: current._id, version: revision, status: data.status,
-        registrationCreatedAt: current.createdAt, remark, createdAt: updatedAt
+        type: "registration_reviewed",
+        audience: "student",
+        recipientId: current.studentId,
+        registrationId: current._id,
+        version: revision,
+        status: data.status,
+        registrationCreatedAt: current.createdAt,
+        remark,
+        createdAt: updatedAt,
       });
     }
-    await transaction.collection('audit_logs').doc(digest(`review-audit:${current._id}:${revision}`)).set({
-      data: { actorType: 'admin', actorId: admin._id, action: 'registration_reviewed',
-        details: { registrationId: current._id, status: data.status }, createdAt: updatedAt }
-    });
+    await transaction
+      .collection("audit_logs")
+      .doc(digest(`review-audit:${current._id}:${revision}`))
+      .set({
+        data: {
+          actorType: "admin",
+          actorId: admin._id,
+          action: "registration_reviewed",
+          details: { registrationId: current._id, status: data.status },
+          createdAt: updatedAt,
+        },
+      });
+  });
+  return { ok: true };
+}
+
+async function reviewPayment(admin, data) {
+  requirePermission(admin, "registrations.view");
+  await scopedRegistration(admin, data.registrationId);
+  if (!["approve", "reject"].includes(data.decision))
+    throw new ApiError("审核结果无效", "INVALID_INPUT");
+  const remark =
+    typeof data.remark === "string" ? data.remark.trim().slice(0, 500) : "";
+  if (data.decision === "reject" && !remark)
+    throw new ApiError("请填写驳回原因", "INVALID_INPUT");
+  await withTransaction(db, async (transaction) => {
+    const current = (
+      await transaction
+        .collection("registrations")
+        .doc(data.registrationId)
+        .get()
+    ).data;
+    if (!current || !canAccess(admin, current))
+      throw new ApiError("无权审核此记录", "FORBIDDEN");
+    if (
+      !Number.isSafeInteger(data.revision) ||
+      current.revision !== data.revision
+    )
+      throw new ApiError("记录已更新，请重新打开", "REVISION_CONFLICT");
+    const member = membership(admin);
+    const teacher = current.paymentStatus === "teacher_pending";
+    if (
+      teacher
+        ? !member || current.teacherId !== member.id
+        : current.paymentStatus !== "finance_pending" ||
+          !["finance", "financeStaff"].includes(member?.position) ||
+          current.paymentTeacherId === admin._id
+    )
+      throw new ApiError(
+        "须由所属报名老师初审，再由不同的财务账号复审",
+        "FORBIDDEN",
+      );
+    if (!current.materials?.paymentProof?.fileId)
+      throw new ApiError("尚未上传缴费凭证", "INVALID_STATE");
+    const paymentStatus =
+      data.decision === "reject"
+        ? "payment_rejected"
+        : teacher
+          ? "finance_pending"
+          : "paid";
+    const now = isoNow(),
+      revision = current.revision + 1;
+    await transaction
+      .collection("registrations")
+      .doc(current._id)
+      .update({
+        data: {
+          paymentStatus,
+          paymentRemark: remark,
+          revision,
+          updatedAt: now,
+          [teacher ? "paymentTeacherId" : "paymentFinanceId"]: admin._id,
+          [teacher ? "paymentTeacherReviewedAt" : "paymentFinanceReviewedAt"]:
+            now,
+        },
+      });
+    await transaction
+      .collection("audit_logs")
+      .doc(`payment-${current._id}-${revision}`)
+      .set({
+        data: {
+          actorId: admin._id,
+          action: "payment_reviewed",
+          details: { registrationId: current._id, paymentStatus, remark },
+          createdAt: now,
+        },
+      });
   });
   return { ok: true };
 }
 
 function adminInbox(admin) {
-  requirePermission(admin, 'registrations.view');
-  return createInbox(db, {
-    audience: 'admin', readerId: admin._id, registrationScope: scope(admin, 'registration.')
-  }, (message, code) => new ApiError(message, code));
+  requirePermission(admin, "registrations.view");
+  return createInbox(
+    db,
+    {
+      audience: "admin",
+      readerId: admin._id,
+      registrationScope: scope(admin, "registration."),
+    },
+    (message, code) => new ApiError(message, code),
+  );
 }
 
 async function materialLink(admin, data) {
   requirePermission(admin, "materials.view");
   if (
     !/^[a-f0-9]{64}$/.test(data.registrationId || "") ||
-    !["idFront", "idBack", "education", "photo"].includes(data.kind)
+    !["idFront", "idBack", "education", "photo", "paymentProof"].includes(
+      data.kind,
+    )
   )
     throw new ApiError("材料参数无效", "INVALID_INPUT");
   const record = await scopedRegistration(admin, data.registrationId);
@@ -620,7 +791,15 @@ async function materialLink(admin, data) {
   return { url: file.tempFileURL };
 }
 
-const registrationManagement = require('./registration-management')({ db, ApiError, requirePermission, scopedRegistration, scope, publicRegistration, withTransaction });
+const registrationManagement = require("./registration-management")({
+  db,
+  ApiError,
+  requirePermission,
+  scopedRegistration,
+  scope,
+  publicRegistration,
+  withTransaction,
+});
 
 async function handle(action, data) {
   if (action === "bootstrapStatus")
@@ -628,15 +807,19 @@ async function handle(action, data) {
   if (action === "bootstrap") return bootstrap(data);
   if (action === "login") return login(data);
   const admin = await authenticate(data.token);
-  if (action === 'registrationOptions') return registrationManagement.options(admin);
-  if (action === 'saveRegistration') return registrationManagement.save(admin, data);
-  if (action === 'registrationStatistics') return registrationManagement.statistics(admin);
-  if (action === 'notifications') return adminInbox(admin).list();
-  if (action === 'readNotification') return adminInbox(admin).read(data.notificationId);
+  if (action === "registrationOptions")
+    return registrationManagement.options(admin);
+  if (action === "saveRegistration")
+    return registrationManagement.save(admin, data);
+  if (action === "registrationStatistics")
+    return registrationManagement.statistics(admin);
+  if (action === "notifications") return adminInbox(admin).list();
+  if (action === "readNotification")
+    return adminInbox(admin).read(data.notificationId);
   if (action === "registrationFilters") return registrationFilters(admin);
   if (action === "accounts") return accountList(admin);
   if (action === "saveAccount") return accountSave(admin, data);
-  if (action === 'deleteAccount') return accountDelete(admin, data);
+  if (action === "deleteAccount") return accountDelete(admin, data);
   if (action === "materialLink") return materialLink(admin, data);
   if (action === "registrationDetail") {
     if (!/^[a-f0-9]{64}$/.test(data.registrationId || ""))
@@ -649,6 +832,7 @@ async function handle(action, data) {
     };
   }
   if (action === "dashboard") return dashboard(admin, data);
+  if (action === "reviewPayment") return reviewPayment(admin, data);
   if (action === "review") return review(admin, data);
   if (action === "logout") {
     await db

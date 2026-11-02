@@ -43,7 +43,7 @@
       </view>
       <view wx:if="{{registration.reviewRemark}}" class="notice">审核备注：{{registration.reviewRemark}}</view>
       <button class="outline-button" bindtap="edit" disabled="{{busy}}">修改报名资料</button>
-      <button wx:if="{{registration.needsDemoPayment}}" class="primary" bindtap="pay">继续模拟缴费</button>
+      <!-- <view class="notice">请联系报名老师完成缴费，无需上传缴费凭证。</view> -->
     </view>
 
     <view wx:if="{{registration}}" class="card material-entry" bindtap="materials">

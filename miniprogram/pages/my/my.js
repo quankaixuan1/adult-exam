@@ -88,9 +88,8 @@ Page({
       initial: String(value.name || '微').slice(0, 1),
       materialsCompleted: ['idFront', 'idBack', 'education', 'photo'].filter(kind => materials[kind] && materials[kind].fileId).length,
       materialsPercent: ['idFront', 'idBack', 'education', 'photo'].filter(kind => materials[kind] && materials[kind].fileId).length * 25,
-      needsDemoPayment: value.paymentStatus === 'pending',
-      paymentText: value.paymentStatus === 'demo_completed' ? '已完成模拟缴费（未真实付款）' : value.paymentStatus === 'pending' ? '待模拟缴费' : '未核验',
-      statusText: value.paymentStatus === 'pending' ? '待模拟缴费' : statusText[value.status] || '处理中'
+      paymentText: value.paymentStatus === 'paid' ? '已缴费' : '请联系报名老师缴费',
+      statusText: statusText[value.status] || '处理中'
     };
   },
   async login() {
@@ -233,9 +232,6 @@ Page({
     } finally {
       if (this.visible && requestId === this.requestId) this.setData({ readingNotification: false });
     }
-  },
-  pay() {
-    wx.navigateTo({ url: '/pages/payment/payment' });
   },
   register() {
     wx.navigateTo({

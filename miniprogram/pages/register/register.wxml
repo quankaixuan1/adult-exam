@@ -1,5 +1,5 @@
 <view class="container">
-  <view class="stepper"><text class="step active">1 个人信息</text><text class="step">2 报考志愿</text><text class="step">3 核对缴费</text></view>
+  <view class="stepper"><text class="step active">1 个人信息</text><text class="step">2 报考志愿</text><text class="step">3 核对报名</text></view>
   <text class="title">填写报名信息</text>
   <text class="muted form-tip"><text class="required">*</text> 为必填项，填写内容会自动保存在本机。</text>
   <text wx:if="{{loading}}" class="muted">正在读取账号信息…</text>

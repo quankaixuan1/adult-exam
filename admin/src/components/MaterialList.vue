@@ -51,14 +51,31 @@ async function openMaterial(kind, operation = 'view') {
 </script>
 
 <template>
-<section class="material-list"><h3>报名材料 · {{ materialCount(registration) }} / 4 项</h3><div v-for="(label, kind) in materialLabels" :key="kind" class="material-item"><div><b>{{ label }}</b><small>{{ registration.materials?.[kind]?.fileName || '尚未上传' }}</small><small v-if="registration.materials?.[kind]">上传时间：{{ new Date(registration.materials[kind].uploadedAt).toLocaleString('zh-CN') }}</small></div><div class="material-actions"><button class="outline" :disabled="!registration.materials?.[kind] || !!openingMaterial" @click="openMaterial(kind, 'view')">{{ openingMaterial === kind + ':view' ? '加载中…' : '查看' }}</button><button class="outline" :disabled="!registration.materials?.[kind] || !!openingMaterial" @click="openMaterial(kind, 'download')">{{ openingMaterial === kind + ':download' ? '下载中…' : '下载' }}</button></div></div><p class="muted">核对材料后，在下方填写整体审核结果；需要补充时请写明具体材料。</p></section>
-<p v-if="error" class="error">{{ error }}</p>
-<MaterialPreview v-if="preview" :preview="preview" @close="closePreview"/>
+  <section class="material-list">
+    <h3>报名材料 · {{ materialCount(registration) }} / 4 项</h3>
+    <div v-for="(label, kind) in materialLabels" :key="kind" class="material-item">
+      <div>
+        <b>{{ label }}</b>
+        <small>{{ registration.materials?.[kind]?.fileName || '尚未上传' }}</small>
+        <small v-if="registration.materials?.[kind]">上传时间：{{ new
+          Date(registration.materials[kind].uploadedAt).toLocaleString('zh-CN') }}</small>
+      </div>
+      <div class="material-actions">
+        <button class="outline" :disabled="!registration.materials?.[kind] || !!openingMaterial"
+          @click="openMaterial(kind, 'view')">{{ openingMaterial === kind + ':view' ? '加载中…' : '查看' }}
+        </button>
+        <button class="outline" :disabled="!registration.materials?.[kind] || !!openingMaterial"
+          @click="openMaterial(kind, 'download')">{{ openingMaterial === kind + ':download' ? '下载中…' : '下载' }}
+        </button>
+      </div>
+    </div>
+    <p class="muted">核对材料后，在下方填写整体审核结果；需要补充时请写明具体材料。</p>
+  </section>
+  <p v-if="error" class="error">{{ error }}</p>
+  <MaterialPreview v-if="preview" :preview="preview" @close="closePreview" />
 </template>
 
 <style scoped>
-
-
 .material-list {
   margin: 24px 0
 }
@@ -86,6 +103,15 @@ async function openMaterial(kind, operation = 'view') {
   flex-shrink: 0
 }
 
-.material-actions{display:flex;gap:8px;flex-shrink:0}
-@media(max-width:600px){.material-item{flex-wrap:wrap}}
+.material-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0
+}
+
+@media(max-width:600px) {
+  .material-item {
+    flex-wrap: wrap
+  }
+}
 </style>

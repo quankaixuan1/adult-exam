@@ -22,18 +22,17 @@ function page(draft = { name: '测试' }) {
 }
 const choose = (p, method, index) => p[method]({ detail: { value: String(index) } });
 
-test('campus and teacher are independent for cross-campus enrollment and restored from draft', () => {
+test('submission does not require campus or teacher and clears hidden draft assignments', () => {
   const p = page({ name: '测试', program: programs[0], consent: true });
   p.submit();
-  assert.match(p.data.error, /请选择报名校区和报名老师/);
+  assert.equal(p.data.error, '');
   choose(p, 'chooseCampus', p.data.campuses.indexOf('下沙校区'));
   choose(p, 'chooseTeacher', p.data.teachers.findIndex(t => t.id === 'wenyi-rong'));
   p.submit();
   assert.equal(p.data.error, '');
-  const restored = page({ name: '测试', program: programs[0], campus: p.data.campus, teacherId: p.data.teacherId });
-  assert.equal(restored.data.campus, '下沙校区');
-  assert.equal(restored.data.teacherId, 'wenyi-rong');
-  assert.match(restored.data.teacherLabel, /文一校区/);
+  assert.equal(p.data.campus, '');
+  assert.equal(p.data.teacherId, '');
+  assert.equal(p.data.teacherLabel, '');
 });
 
 test('frontend and backend catalogs agree and have unique IDs', () => {

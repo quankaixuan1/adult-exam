@@ -5,7 +5,7 @@ defineProps({ admin: Object, tab: String, error: String, notifications: { type: 
   openingNotification: Boolean, canReadNotifications: Boolean });
 const emit = defineEmits(['update:tab', 'refresh', 'logout', 'open-notification', 'refresh-notifications']);
 const notificationsOpen = ref(false);
-const titles = { registration_completed: '新报名 · 模拟缴费已完成', material_uploaded: '报名材料已提交' };
+const titles = { registration_completed: '新报名 · 已提交', material_uploaded: '报名材料已提交' };
 function toggleNotifications() {
   notificationsOpen.value = !notificationsOpen.value;
   if (notificationsOpen.value) emit('refresh-notifications');

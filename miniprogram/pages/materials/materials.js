@@ -33,7 +33,7 @@ Page({
         return;
       }
       const materials = registration.materials || {};
-      this.setData({ registration, materials, completed: Object.keys(materials).filter(key => materials[key] && materials[key].fileId).length });
+      this.setData({ registration, materials, completed: ['idFront', 'idBack', 'education', 'photo'].filter(key => materials[key] && materials[key].fileId).length });
     } catch (e) {
       this.setData({ error: e.message });
     } finally {
@@ -77,7 +77,7 @@ Page({
       const uploaded = await wx.cloud.uploadFile({ cloudPath: prepared.cloudPath, filePath });
       const result = await api.saveMaterial({ kind, fileId: uploaded.fileID, fileName, size });
       const materials = { ...this.data.materials, [kind]: result.material };
-      this.setData({ materials, completed: Object.keys(materials).filter(key => materials[key] && materials[key].fileId).length });
+      this.setData({ materials, completed: ['idFront', 'idBack', 'education', 'photo'].filter(key => materials[key] && materials[key].fileId).length });
       succeeded = true;
     } catch (e) {
       this.setData({ error: e.message || '上传失败，请重试' });

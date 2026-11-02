@@ -139,7 +139,7 @@ function loadApi(name, db) {
     require: name => name === 'wx-server-sdk' ? cloud : name.startsWith('./') ? require(path.join(directory, name)) : require(name),
     exports: {}, Buffer, process: { env: { PII_ENCRYPTION_KEY: '1'.repeat(64) } }, console: { error() {} }
   });
-  const exposed = name === 'student-api' ? 'handle, completeDemoPayment, saveMaterial, studentInbox' : 'review, adminInbox, registrationManagement, dashboard, registrationFilters, scopedRegistration, materialLink, accountSave, accountDelete, authenticate, publicAdmin';
+  const exposed = name === 'student-api' ? 'handle, completeDemoPayment, saveMaterial, studentInbox' : 'reviewPayment, review, adminInbox, registrationManagement, dashboard, registrationFilters, scopedRegistration, materialLink, accountSave, accountDelete, authenticate, publicAdmin';
   vm.runInContext(fs.readFileSync(path.join(directory, 'index.js'), 'utf8') + `\nthis.testApi = { ${exposed} };`, context);
   return { ...context.testApi, main: context.exports.main };
 }
@@ -555,4 +555,40 @@ test('admin polling does not restore read messages and stops while hidden or unm
   assert.equal(inbox.unreadTotal.value, 0);
   assert.equal(timers.size, 0);
   assert.equal(listeners.size, 0);
+});
+
+ test('offline payment requires teacher then separate finance approval', async () => {
+ const db = memoryDatabase({registrations:[registration({teacherId:'wenyi-rong',paymentStatus:'teacher_pending',materials:{paymentProof:{fileId:'cloud://proof'}}})]});
+ const api=loadApi('admin-api',db);
+ const request={registrationId:studentId,revision:1,decision:'approve'};
+ await assert.rejects(api.reviewPayment(organizationAdmin('finance'),request),{code:'FORBIDDEN'});
+ await api.reviewPayment(organizationAdmin('wenyi-rong'),request);
+ assert.equal(db.rows('registrations')[0].paymentStatus,'finance_pending');
+ await assert.rejects(api.reviewPayment(organizationAdmin('wenyi-rong'),{...request,revision:2}),{code:'FORBIDDEN'});
+ await api.reviewPayment(organizationAdmin('finance'),{...request,revision:2});
+ assert.equal(db.rows('registrations')[0].paymentStatus,'paid');
+ });
+
+test('registration immediately notifies admins and notification failures roll back submission', async () => {
+  const db = memoryDatabase({ students: [{ _id: studentId }] });
+  const api = loadApi('student-api', db);
+  const event = { action: 'register', data: {
+    name: '测试考生', phone: '13800000000', idNumber: '11010519491231002X', gender: '女', ethnicity: '汉',
+    education: '高中', currentAddress: '测试地址', politicalStatus: '群众', consent: true, programId: 'other',
+    customProgram: { school: '测试大学', level: '高起本', major: '测试专业' }
+  } };
+  db.failNotifications = true;
+  assert.equal((await api.main(event)).ok, false);
+  assert.equal(db.rows('registrations').length, 0);
+  db.failNotifications = false;
+  assert.equal((await api.main(event)).ok, true);
+  const notifications = db.rows('notification_events');
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].type, 'registration_completed');
+  assert.equal(notifications[0].audience, 'admin');
+  assert.equal(notifications[0].registrationId, studentId);
+  assert.equal(notifications[0].registrationCreatedAt, db.rows('registrations')[0].createdAt);
+  assert.equal((await api.main(event)).code, 'ALREADY_REGISTERED');
+  assert.equal(db.rows('notification_events').length, 1);
+  assert.equal((await api.main({ action: 'prepareMaterialUpload', data: { kind: 'paymentProof', extension: 'jpg' } })).code, 'INVALID_INPUT');
 });

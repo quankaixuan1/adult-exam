@@ -1,10 +1,11 @@
 const programs = require('./programs');
 const { campuses, members, positions, memberById } = require('./organization');
 const { membership, isManagement, canAccess } = require('./access');
-const { randomBytes } = require('crypto');
+const { randomBytes, createHash, createCipheriv } = require('crypto');
+const { validateIdNumber } = require('./id-number');
 const { normalizeRegistration } = require('./registration-normalization');
 
-module.exports = function ({ db, ApiError, requirePermission, scopedRegistration, scope, publicRegistration, withTransaction }) {
+module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegistration, scope, publicRegistration, withTransaction }) {
   const fail = message => { throw new ApiError(message, 'INVALID_INPUT'); };
   function text(value, max, label, required = false) {
     if (value != null && typeof value !== 'string') fail(`${label}格式无效`);
@@ -30,7 +31,7 @@ module.exports = function ({ db, ApiError, requirePermission, scopedRegistration
       ['name', 40, '姓名', true], ['phone', 11, '手机号', true], ['gender', 2, '性别'],
       ['ethnicity', 20, '民族'], ['education', 20, '学历'], ['workUnit', 100, '工作单位'],
       ['currentAddress', 160, '现居住地址'], ['politicalStatus', 20, '政治面貌'],
-      ['emergencyName', 40, '第二联系人'], ['emergencyPhone', 11, '第二联系人电话'], ['classId', 100, '班级']
+      ['emergencyName', 40, '第二联系人'], ['emergencyPhone', 11, '第二联系人电话']
     ]) next[key] = text(data[key] === undefined ? current?.[key] : data[key], max, label, required);
     if (!/^1[3-9]\d{9}$/.test(next.phone)) fail('请填写有效的11位手机号');
     if (next.gender && !['男', '女'].includes(next.gender)) fail('性别无效');
@@ -38,6 +39,31 @@ module.exports = function ({ db, ApiError, requirePermission, scopedRegistration
     for (const key of ['unionMember', 'veteran']) {
       if (data[key] != null && typeof data[key] !== 'boolean') fail('选项格式无效');
       if (data[key] != null) next[key] = data[key];
+    }
+    if (data.studyCampus !== undefined) {
+      next.studyCampus = text(data.studyCampus, 30, '就读校区');
+      if (next.studyCampus && !campuses.includes(next.studyCampus)) fail('请选择有效的就读校区');
+    }
+    if (data.actualPaidAmount !== undefined) {
+      if (data.actualPaidAmount === '' || data.actualPaidAmount === null) next.actualPaidAmount = null;
+      else {
+        const amount = String(data.actualPaidAmount);
+        if (!/^\d{1,8}(\.\d{1,2})?$/.test(amount)) fail('实际缴费金额须为非负金额，最多两位小数');
+        next.actualPaidAmount = Number(amount);
+      }
+    }
+    const idNumber = text(data.idNumber, 18, '身份证号').toUpperCase();
+    if (idNumber) {
+      const error = validateIdNumber(idNumber);
+      if (error) fail(error);
+      const key = process.env.PII_ENCRYPTION_KEY || '';
+      if (!/^[a-f0-9]{64}$/i.test(key)) throw new ApiError('敏感信息保护配置尚未完成，请联系管理员', 'SERVICE_CONFIG');
+      const iv = randomBytes(12);
+      const cipher = createCipheriv('aes-256-gcm', Buffer.from(key, 'hex'), iv);
+      const encrypted = Buffer.concat([cipher.update(idNumber, 'utf8'), cipher.final()]);
+      next.idNumberEncrypted = { version: 1, iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: encrypted.toString('base64') };
+      next.idNumberHash = createHash('sha256').update(`id:${idNumber}`).digest('hex');
+      next.idNumberLast4 = idNumber.slice(-4);
     }
     const rawLevel = text(data.level, 10, '报考层次', true);
     const rawSchool = text(data.school, 100, '学校', true);
@@ -71,14 +97,26 @@ module.exports = function ({ db, ApiError, requirePermission, scopedRegistration
     if (!creating) await scopedRegistration(admin, data.registrationId);
     const id = creating ? randomBytes(32).toString('hex') : data.registrationId;
     const updatedAt = new Date().toISOString();
-    let saved;
+    let saved, uploadedFileId;
+    try {
     await withTransaction(db, async transaction => {
       const current = creating ? null : (await transaction.collection('registrations').doc(id).get()).data;
       if (!creating && (!current || !canAccess(admin, current))) throw new ApiError('记录不存在或不在授权范围内', 'FORBIDDEN');
       if (current && (!Number.isSafeInteger(data.revision) || current.revision !== data.revision)) throw new ApiError('资料已更新，请重新打开详情', 'REVISION_CONFLICT');
       const fields = { ...cleanFields(data, current), ...affiliation(admin, data, current) };
+      if (data.paymentProofUpload) {
+        const proof = data.paymentProofUpload;
+        if (typeof proof.base64 !== 'string' || proof.base64.length > 2800000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(proof.base64)) fail('凭证图片无效或超过2MB');
+        const bytes = Buffer.from(proof.base64, 'base64');
+        const png = bytes.subarray(0, 8).toString('hex') === '89504e470d0a1a0a';
+        const jpeg = bytes.subarray(0, 3).toString('hex') === 'ffd8ff';
+        if ((!png && !jpeg) || bytes.length > 2 * 1024 * 1024) fail('请上传2MB以内的PNG或JPG图片');
+        const uploaded = await cloud.uploadFile({ cloudPath: `student-materials/${id}/paymentProof/${randomBytes(16).toString('hex')}.${png ? 'png' : 'jpg'}`, fileContent: bytes });
+        uploadedFileId = uploaded.fileID;
+        fields.materials = { ...current?.materials, paymentProof: { fileId: uploaded.fileID, fileName: text(proof.fileName, 120, '文件名'), size: bytes.length, uploadedAt: updatedAt, uploadedBy: admin._id, status: 'pending' } };
+      }
       const next = { ...fields, updatedAt, revision: (current?.revision || 0) + 1 };
-      if (creating) Object.assign(next, { source: 'admin', createdBy: admin._id, createdAt: updatedAt, status: 'pending', paymentStatus: 'pending', materials: {} });
+      if (creating) Object.assign(next, { source: 'admin', createdBy: admin._id, createdAt: updatedAt, status: 'pending', paymentStatus: 'pending', materials: fields.materials || {} });
       // 仅调整归属不撤销审核；资料变动后重新待审核。
       else if (Object.keys(fields).some(key => !['campus', 'teacherId', 'teacherName', 'classId'].includes(key) && fields[key] !== (current[key] ?? ''))) next.status = 'pending';
       if (creating) await transaction.collection('registrations').doc(id).set({ data: next });
@@ -89,6 +127,10 @@ module.exports = function ({ db, ApiError, requirePermission, scopedRegistration
       } });
       saved = { ...current, ...next, _id: id };
     });
+    } catch (error) {
+      if (uploadedFileId) { try { await cloud.deleteFile({ fileList: [uploadedFileId] }); } catch (_) {} }
+      throw error;
+    }
     return { registration: publicRegistration(saved) };
   }
   async function statistics(admin) {

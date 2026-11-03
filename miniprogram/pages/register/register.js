@@ -2,7 +2,7 @@ const api = require('../../services/api');
 const { validateIdNumber } = require('../../utils/id-number');
 
 const DRAFT_KEY = 'registrationFormDraft';
-const educationOptions = ['高中', '中专', '大专', '本科', '硕士及以上'];
+const educationOptions = ['高中以下', '高中（中专、职高、技校等）', '专科', '本科', '硕士及以上'];
 const politicalOptions = ['群众', '共青团员', '中共党员', '其他'];
 const emptyForm = {
   name: '', gender: '', ethnicity: '', idNumber: '', phone: '', education: '',

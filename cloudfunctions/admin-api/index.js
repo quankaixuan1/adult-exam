@@ -403,6 +403,8 @@ function publicRegistration(item) {
     teacherName: item.teacherName || "",
     teacherId: item.teacherId || "",
     campus: item.campus || "",
+    studyCampus: item.studyCampus || "",
+    actualPaidAmount: item.actualPaidAmount ?? null,
     programId: item.programId || "",
     studentNo: item.studentNo || "",
     paymentStatus: item.paymentStatus || "pending",
@@ -442,6 +444,7 @@ const registrationFilterFields = [
   "level",
   "classId",
   "campus",
+  "studyCampus",
   "teacherName",
 ];
 
@@ -465,6 +468,7 @@ async function registrationFilters(admin) {
           level: "$level",
           classId: "$classId",
           campus: "$campus",
+          studyCampus: "$studyCampus",
           teacherName: "$teacherName",
         },
       })
@@ -793,6 +797,7 @@ async function materialLink(admin, data) {
 
 const registrationManagement = require("./registration-management")({
   db,
+  cloud,
   ApiError,
   requirePermission,
   scopedRegistration,

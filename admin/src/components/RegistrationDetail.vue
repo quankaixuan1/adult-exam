@@ -115,7 +115,7 @@ async function saveReview() {
             }}</b></span><span>高考复习班<b>{{ selected.isExamPrepClass ? '是' : '否' }}</b></span><span>报考层次<b>{{
               showValue(selected.level) }}</b></span><span>学校<b>{{ showValue(selected.school) }}</b></span><span>专业<b>{{
               showValue(selected.major) }}</b></span><span>历史费用合计<b>{{ selected.fee == null ? '待核对' : '¥' + selected.fee
-            }}</b></span><span>班级<b>{{ selected.classId || '待分班' }}</b></span><span>报名校区<b>{{ selected.campus || '待分配'
+            }}</b></span><span>实际缴费金额<b>{{ selected.actualPaidAmount == null ? '未填写' : '¥' + selected.actualPaidAmount }}</b></span><span>就读校区<b>{{ selected.studyCampus || '待定' }}</b></span><span>报名校区<b>{{ selected.campus || '待分配'
             }}</b></span><span>考试类别<b>{{ selected.examCategory || '—' }}</b></span><span>报名老师<b>{{ selected.teacherName
               ||
               '未提供' }}</b></span><span>学生编号<b>{{ selected.studentNo || '未提供' }}</b></span><span>来源<b>{{ selected.source

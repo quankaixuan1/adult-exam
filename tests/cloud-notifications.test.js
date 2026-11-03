@@ -134,7 +134,7 @@ function memoryDatabase(seed = {}) {
 
 function loadApi(name, db) {
   const directory = path.join(root, 'cloudfunctions', name);
-  const cloud = { init() {}, database: () => db, getWXContext: () => ({ OPENID: 'test-openid' }), deleteFile: async () => ({}) };
+  const cloud = { init() {}, database: () => db, getWXContext: () => ({ OPENID: 'test-openid' }), deleteFile: async () => ({}), uploadFile: async ({ cloudPath }) => ({ fileID: `cloud://test/${cloudPath}` }) };
   const context = vm.createContext({
     require: name => name === 'wx-server-sdk' ? cloud : name.startsWith('./') ? require(path.join(directory, name)) : require(name),
     exports: {}, Buffer, process: { env: { PII_ENCRYPTION_KEY: '1'.repeat(64) } }, console: { error() {} }
@@ -591,4 +591,36 @@ test('registration immediately notifies admins and notification failures roll ba
   assert.equal((await api.main(event)).code, 'ALREADY_REGISTERED');
   assert.equal(db.rows('notification_events').length, 1);
   assert.equal((await api.main({ action: 'prepareMaterialUpload', data: { kind: 'paymentProof', extension: 'jpg' } })).code, 'INVALID_INPUT');
+});
+
+
+test('admin edits study campus, encrypted identity, paid amount and payment proof', async () => {
+  const previousKey = process.env.PII_ENCRYPTION_KEY;
+  process.env.PII_ENCRYPTION_KEY = '1'.repeat(64);
+  try {
+    const db = memoryDatabase();
+    const api = loadApi('admin-api', db).registrationManagement;
+    const actor = { _id: 'primary' };
+    const data = manualRegistration({ studyCampus: '文一校区', actualPaidAmount: '500.25', idNumber: '11010519491231002X',
+      paymentProofUpload: { fileName: 'receipt.png', base64: Buffer.from('89504e470d0a1a0a', 'hex').toString('base64') } });
+    const { registration: saved } = await api.save(actor, data);
+    assert.equal(saved.studyCampus, '文一校区');
+    assert.equal(saved.campus, '下沙校区');
+    assert.equal(saved.actualPaidAmount, 500.25);
+    assert.equal(saved.idNumberMasked, '**************002X');
+    const stored = db.rows('registrations')[0];
+    assert.ok(stored.idNumberEncrypted.data);
+    assert.equal(stored.idNumber, undefined);
+    assert.ok(stored.materials.paymentProof.fileId.includes(`/student-materials/${saved.id}/paymentProof/`));
+    const update = { ...saved, registrationId: saved.id, idNumber: '', actualPaidAmount: '0' };
+    await api.save(actor, update);
+    assert.equal(db.rows('registrations')[0].idNumberHash, stored.idNumberHash);
+    assert.equal(db.rows('registrations')[0].actualPaidAmount, 0);
+    await assert.rejects(api.save(actor, { ...update, revision: 2, actualPaidAmount: '-1' }), { code: 'INVALID_INPUT' });
+    await assert.rejects(api.save(actor, { ...update, revision: 2, idNumber: '123' }), { code: 'INVALID_INPUT' });
+    await assert.rejects(api.save(actor, { ...update, revision: 1 }), { code: 'REVISION_CONFLICT' });
+  } finally {
+    if (previousKey === undefined) delete process.env.PII_ENCRYPTION_KEY;
+    else process.env.PII_ENCRYPTION_KEY = previousKey;
+  }
 });

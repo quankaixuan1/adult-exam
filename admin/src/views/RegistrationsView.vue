@@ -13,14 +13,13 @@ const editing = ref(false), editRecord = ref(null), statistics = ref(null);
 const statLabels = { campus: '按校区', teacherId: '按所属老师', level: '按层次', school: '按院校' };
 const canCreate = computed(() => data.admin?.role === 'super' || data.admin?.permissions?.includes('registrations.create'));
 const canEdit = computed(() => data.admin?.role === 'super' || data.admin?.permissions?.includes('registrations.edit'));
-const filters = reactive({ school: '', major: '', level: '', classId: '', campus: '', teacherName: '', isExamPrepClass: '' });
-const filterOptions = reactive({ school: [], major: [], level: [], classId: [], campus: [], teacherName: [] });
+const filters = reactive({ school: '', major: '', level: '', classId: '', studyCampus: '', teacherName: '', isExamPrepClass: '' });
+const filterOptions = reactive({ school: [], major: [], level: [], classId: [], studyCampus: [], teacherName: [] });
 const filterFields = [
   { key: 'school', label: '学校' },
   { key: 'major', label: '专业' },
   { key: 'level', label: '层次' },
-  { key: 'classId', label: '班级' },
-  { key: 'campus', label: '报名校区' },
+  { key: 'studyCampus', label: '就读校区' },
   { key: 'teacherName', label: '所属老师' }
 ];
 
@@ -64,7 +63,7 @@ async function loadDashboard(page = 1, options = {}) {
       major: filters.major,
       level: filters.level,
       classId: filters.classId,
-      campus: filters.campus,
+      studyCampus: filters.studyCampus,
       teacherName: filters.teacherName,
       isExamPrepClass: filters.isExamPrepClass,
       page
@@ -157,8 +156,8 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
             <tr>
               <th>考生</th>
               <th>学校与专业</th>
-              <th>层次 / 班级</th>
-              <th>校区 / 所属老师</th>
+              <th>层次</th>
+              <th>就读校区 / 所属老师</th>
               <th>材料</th>
               <th>提交时间</th>
               <th>状态</th>
@@ -169,8 +168,8 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
             <tr v-for="item in rows" :key="item.id">
               <td><b>{{ item.name }}</b><small>{{ item.phone }}</small></td>
               <td><b>{{ item.school }}</b><small>{{ item.major }}</small><small v-if="item.isExamPrepClass">高考复习班</small></td>
-              <td>{{ item.level }}<small>{{ item.classId || '待分班' }}</small></td>
-              <td>{{ item.campus || '待分配' }}<small>{{ item.teacherName || '待分配' }}</small></td>
+              <td>{{ item.level }}</td>
+              <td>{{ item.studyCampus || '待定' }}<small>{{ item.teacherName || '待分配' }}</small></td>
               <td>{{ materialCount(item) }} / 4 项</td>
               <td>{{ new Date(item.createdAt).toLocaleString('zh-CN') }}</td>
               <td><span class="status" :class="item.status">{{ statusLabels[item.status] }}</span></td>

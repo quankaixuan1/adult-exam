@@ -8,7 +8,7 @@ const { decode, patchFor } = require('../scripts/normalize-registration-data');
 test('school aliases and both bracket styles normalize without losing prep classification', () => {
   for (const [alias, full] of schoolAliases) for (const suffix of ['', '(高复)', '（高复）']) {
     const normalized = normalizeRegistration({ school: ` ${alias}${suffix} `, level: '高升本' });
-    assert.deepEqual(normalized, { school: full, level: '高起本', isExamPrepClass: !!suffix });
+    assert.deepEqual(normalized, { school: full, level: '高起本' });
     assert.equal(normalizeRegistration({ ...normalized }).school, full);
   }
   assert.equal(normalizeRegistration({ school: '杭州医学院（高复）' }).school, '杭州医学院');
@@ -20,12 +20,12 @@ test('migration preserves originals, student names and existing flags; second ru
   const patch = normalizationPatch(before);
   assert.equal(patch.schoolOriginal, '杭电(高复)');
   assert.equal(patch.levelOriginal, '高升本');
-  assert.equal(patch.isExamPrepClass, true);
+  assert.equal(patch.isExamPrepClass, undefined);
   assert.equal(patch.name, undefined);
   assert.deepEqual(normalizationPatch({ ...before, ...patch }), {});
-  assert.equal(normalizeRegistration({ school: '杭州电子科技大学', schoolOriginal: '杭电（高复）' }).isExamPrepClass, true);
-  assert.equal(normalizeRegistration({ school: '其它学校', name: '高复某' }).isExamPrepClass, false);
-  assert.equal(normalizeRegistration({ school: '其它学校', isExamPrepClass: true }).isExamPrepClass, true);
+  assert.equal(normalizeRegistration({ school: '杭州电子科技大学', schoolOriginal: '杭电（高复）' }).isExamPrepClass, undefined);
+  assert.equal(normalizeRegistration({ school: '其它学校', name: '高复某' }).isExamPrepClass, undefined);
+  assert.equal(normalizeRegistration({ school: '其它学校', isExamPrepClass: true }).isExamPrepClass, undefined);
 });
 test('migration normalizes old school grants and decodes database numeric types', () => {
   assert.deepEqual(patchFor('admins', { schools: ['杭电', '杭电(高复)', '商大'] }), { schools: ['杭州电子科技大学', '浙江工商大学'] });

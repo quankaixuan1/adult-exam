@@ -9,8 +9,7 @@ function normalizeRegistration(record) {
   if (matches.length > 1) throw new Error('学校名称包含多个院校，请人工核对');
   const normalizedSchool = matches[0]?.[1] || school.replace(/[（(]\s*高复\s*[）)]/g, '').replace(/高复/g, '').trim();
   const level = typeof record.level === 'string' ? record.level.trim().replace(/高升本/g, '高起本') : '';
-  const isExamPrepClass = record.isExamPrepClass === true || /高复/.test(school) || /高复/.test(record.schoolOriginal || '');
-  return { school: normalizedSchool, level, isExamPrepClass };
+  return { school: normalizedSchool, level };
 }
 
 function normalizationPatch(record) {

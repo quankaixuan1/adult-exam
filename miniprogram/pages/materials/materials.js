@@ -1,6 +1,6 @@
 const api = require('../../services/api');
 const MAX_SIZE = 10 * 1024 * 1024;
-const IMAGE_KINDS = ['idFront', 'idBack', 'photo'];
+const IMAGE_KINDS = ['idFront', 'idBack', 'photo', 'education'];
 
 function extensionOf(name, fallback = '') {
   const match = String(name || '').toLowerCase().match(/\.([a-z0-9]+)(?:\?|$)/);
@@ -51,6 +51,10 @@ Page({
     } catch (e) {
       if (!/cancel/i.test(e.errMsg || e.message || '')) this.setData({ error: e.message || '选择图片失败' });
     }
+  },
+
+  chooseEducationImage() {
+    return this.chooseImage({ currentTarget: { dataset: { kind: 'education' } } });
   },
 
   async chooseEducationFile() {

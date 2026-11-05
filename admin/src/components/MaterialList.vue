@@ -69,7 +69,7 @@ async function openMaterial(kind, operation = 'view') {
         </button>
       </div>
     </div>
-    <p class="muted">核对材料后，在下方填写整体审核结果；需要补充时请写明具体材料。</p>
+    <!-- <p class="muted">核对材料后，在下方填写整体审核结果；需要补充时请写明具体材料。</p> -->
   </section>
   <p v-if="error" class="error">{{ error }}</p>
   <MaterialPreview v-if="preview" :preview="preview" @close="closePreview" />

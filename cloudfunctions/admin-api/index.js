@@ -5,6 +5,7 @@ const {
   createInbox,
 } = require("./notifications");
 const {
+  createDecipheriv,
   randomBytes,
   createHash,
   scryptSync,
@@ -387,6 +388,9 @@ function publicRegistration(item) {
     education: item.education || "",
     workUnit: item.workUnit || "",
     currentAddress: item.currentAddress || "",
+    note: item.note || "",
+    registrationSource: item.registrationSource || "",
+    referrer: item.referrer || "",
     politicalStatus: item.politicalStatus || "",
     unionMember:
       typeof item.unionMember === "boolean" ? item.unionMember : null,
@@ -399,12 +403,13 @@ function publicRegistration(item) {
     source: item.source || "miniprogram",
     sourceRow: item.sourceRow || null,
     schoolOriginal: item.schoolOriginal || "",
-    isExamPrepClass: item.isExamPrepClass === true,
     teacherName: item.teacherName || "",
     teacherId: item.teacherId || "",
     campus: item.campus || "",
     studyCampus: item.studyCampus || "",
     actualPaidAmount: item.actualPaidAmount ?? null,
+    paymentBreakdown: item.paymentBreakdown || null,
+    paymentProofs: (item.paymentProofs || (item.materials?.paymentProof ? [item.materials.paymentProof] : [])).map((p, index) => ({ index, fileName: p.fileName, uploadedAt: p.uploadedAt })),
     programId: item.programId || "",
     studentNo: item.studentNo || "",
     paymentStatus: item.paymentStatus || "pending",
@@ -500,6 +505,18 @@ async function registrationFilters(admin) {
   );
 }
 
+function exportIdentity(record) {
+  if (!record.idNumberEncrypted) return typeof record.idNumber === 'string' ? record.idNumber : '';
+  const key = process.env.PII_ENCRYPTION_KEY || '';
+  if (!/^[a-f0-9]{64}$/i.test(key)) throw new ApiError('身份证解密配置缺失，请联系管理员', 'SERVICE_CONFIG');
+  try {
+    const encrypted = record.idNumberEncrypted;
+    const decipher = createDecipheriv('aes-256-gcm', Buffer.from(key, 'hex'), Buffer.from(encrypted.iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(encrypted.tag, 'base64'));
+    return Buffer.concat([decipher.update(Buffer.from(encrypted.data, 'base64')), decipher.final()]).toString('utf8');
+  } catch (_) { throw new ApiError('身份证解密失败，请检查加密密钥配置', 'SERVICE_CONFIG'); }
+}
+
 async function dashboard(admin, data) {
   requirePermission(admin, "registrations.view");
   const status = ["pending", "approved", "rejected"].includes(data.status)
@@ -518,10 +535,9 @@ async function dashboard(admin, data) {
   if (status) {
     conditions.push({ status });
   }
-  if (data.isExamPrepClass !== undefined && data.isExamPrepClass !== "") {
-    if (!["true", "false"].includes(data.isExamPrepClass))
-      throw new ApiError("高考复习班筛选无效", "INVALID_INPUT");
-    conditions.push({ isExamPrepClass: data.isExamPrepClass === "true" });
+  if (data.paymentStatus) {
+    if (!['pending', 'finance_pending', 'paid', 'payment_rejected'].includes(data.paymentStatus)) throw new ApiError('缴费状态无效', 'INVALID_INPUT');
+    conditions.push({ paymentStatus: data.paymentStatus === 'finance_pending' ? command.in(['finance_pending', 'teacher_pending']) : data.paymentStatus });
   }
 
   for (const field of registrationFilterFields) {
@@ -565,11 +581,12 @@ async function dashboard(admin, data) {
   const query = collection.where(filtered);
   // 统计总数、各状态数量以及分页数据
 
+  const finance = !isSuper(admin) && ['finance', 'financeStaff'].includes(membership(admin)?.position);
   const [total, pending, approved, rejected, rows] = await Promise.all([
     collection.where(baseScope).count(),
-    collection.where(command.and([baseScope, { status: "pending" }])).count(),
-    collection.where(command.and([baseScope, { status: "approved" }])).count(),
-    collection.where(command.and([baseScope, { status: "rejected" }])).count(),
+    collection.where(command.and([baseScope, finance ? { paymentStatus: command.in(['finance_pending', 'teacher_pending']) } : { status: "pending" }])).count(),
+    collection.where(command.and([baseScope, finance ? { paymentStatus: "paid" } : { status: "approved" }])).count(),
+    collection.where(command.and([baseScope, finance ? { paymentStatus: "payment_rejected" } : { status: "rejected" }])).count(),
     query
       .orderBy("createdAt", "asc")
       .orderBy("_id", "asc")
@@ -585,7 +602,7 @@ async function dashboard(admin, data) {
       approved: approved.total,
       rejected: rejected.total,
     },
-    registrations: rows.data.map(publicRegistration),
+    registrations: rows.data.map(record => ({ ...publicRegistration(record), ...(data.exportIdentity === true ? { idNumber: exportIdentity(record) } : {}) })),
     page,
     pageSize,
     filteredTotal: (await query.count()).total,
@@ -593,6 +610,8 @@ async function dashboard(admin, data) {
 }
 
 async function review(admin, data) {
+  if (!isSuper(admin) && ['finance', 'financeStaff'].includes(membership(admin)?.position))
+    throw new ApiError('财务账号仅处理缴费审核，无需审核报名信息', 'FORBIDDEN');
   requirePermission(admin, "registrations.review");
   await scopedRegistration(admin, data.registrationId);
   if (
@@ -698,26 +717,11 @@ async function reviewPayment(admin, data) {
     )
       throw new ApiError("记录已更新，请重新打开", "REVISION_CONFLICT");
     const member = membership(admin);
-    const teacher = current.paymentStatus === "teacher_pending";
-    if (
-      teacher
-        ? !member || current.teacherId !== member.id
-        : current.paymentStatus !== "finance_pending" ||
-          !["finance", "financeStaff"].includes(member?.position) ||
-          current.paymentTeacherId === admin._id
-    )
-      throw new ApiError(
-        "须由所属报名老师初审，再由不同的财务账号复审",
-        "FORBIDDEN",
-      );
+    if (!['finance_pending', 'teacher_pending'].includes(current.paymentStatus) || (!isSuper(admin) && !['finance', 'financeStaff'].includes(member?.position)))
+      throw new ApiError('缴费凭证须由财务老师或超级管理员审核', 'FORBIDDEN');
     if (!current.materials?.paymentProof?.fileId)
       throw new ApiError("尚未上传缴费凭证", "INVALID_STATE");
-    const paymentStatus =
-      data.decision === "reject"
-        ? "payment_rejected"
-        : teacher
-          ? "finance_pending"
-          : "paid";
+    const paymentStatus = data.decision === 'reject' ? 'payment_rejected' : 'paid';
     const now = isoNow(),
       revision = current.revision + 1;
     await transaction
@@ -729,9 +733,8 @@ async function reviewPayment(admin, data) {
           paymentRemark: remark,
           revision,
           updatedAt: now,
-          [teacher ? "paymentTeacherId" : "paymentFinanceId"]: admin._id,
-          [teacher ? "paymentTeacherReviewedAt" : "paymentFinanceReviewedAt"]:
-            now,
+          paymentFinanceId: admin._id,
+          paymentFinanceReviewedAt: now,
         },
       });
     await transaction
@@ -772,7 +775,9 @@ async function materialLink(admin, data) {
   )
     throw new ApiError("材料参数无效", "INVALID_INPUT");
   const record = await scopedRegistration(admin, data.registrationId);
-  const material = record.materials && record.materials[data.kind];
+  const proofList = record.paymentProofs || (record.materials?.paymentProof ? [record.materials.paymentProof] : []);
+  if (data.proofIndex !== undefined && (!Number.isSafeInteger(data.proofIndex) || data.proofIndex < 0)) throw new ApiError('凭证参数无效', 'INVALID_INPUT');
+  const material = data.kind === 'paymentProof' && data.proofIndex !== undefined ? proofList[data.proofIndex] : record.materials && record.materials[data.kind];
   if (!material || !material.fileId)
     throw new ApiError("该项材料尚未上传", "NOT_FOUND");
   if (

@@ -39,3 +39,12 @@
 .notification-row { padding: 20rpx 0; border-bottom: 1rpx solid #edf1f6; }
 .notification-title { display: block; font-weight: 700; margin-bottom: 8rpx; }
 .notification-row button { margin-top: 16rpx; }
+
+.payment-badge { display: inline-flex; align-items: center; gap: 12rpx; padding: 12rpx 24rpx; border-radius: 999rpx; border: 1rpx solid #cbd5e1; background: #f1f5f9; color: #475569; white-space: nowrap; }
+.payment-icon { width: 32rpx; height: 32rpx; flex-shrink: 0; }
+.info-grid .payment-badge .payment-label { margin: 0; color: inherit; font-size: 26rpx; font-weight: 700; line-height: 1.4; word-break: normal; }
+.payment-badge.finance_pending { color: #92400e; background: #fff3cd; border-color: #e8b441; }
+.payment-badge.paid { color: #166534; background: #dcfce7; border-color: #86c99c; }
+.payment-badge.payment_rejected { color: #b42318; background: #fee4e2; border-color: #f3a8a2; }
+
+.info-grid .teacher-info { display: flex; flex-direction: column; justify-content: space-between; }

@@ -17,7 +17,6 @@
     <view class="summary-row"><text>报考专业</text><text>{{draft.program.major}}</text></view><view class="summary-row"><text>学制</text><text>{{draft.program.duration}}</text></view>
     <view class="summary-row"><text>学习形式</text><text>{{draft.program.studyMode}}</text></view>
     <view class="summary-row"><text>考试科目</text><text>{{draft.program.examCategory}}</text></view>
-    <view class="summary-row"><text>高考复习班</text><text>待定</text></view>
   </view>
   <view class="fee-card"><text>应缴金额</text><text class="price">¥{{draft.program.fee}}</text><text class="muted">提交后请联系报名老师完成缴费</text></view>
   <view class="notice">提交后可在“我的账号”继续上传身份证、学历证明和证件照。</view>

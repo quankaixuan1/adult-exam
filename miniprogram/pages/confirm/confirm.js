@@ -9,7 +9,7 @@ Page({
       try {
         const normalized = normalizeRegistration(draft.program);
         const program = { ...draft.program, ...normalized, schoolOriginal: draft.program.schoolOriginal || draft.program.school };
-        this.setData({ draft: { ...draft, program, idNumberMasked: `**************${draft.idNumber.slice(-4)}` } });
+        this.setData({ draft: { ...draft, program, idNumberMasked: draft.idNumber ? `**************${draft.idNumber.slice(-4)}` : draft.idNumberMasked } });
       } catch (e) { this.setData({ error: e.message }); }
     }
   },
@@ -21,8 +21,10 @@ Page({
       const current = (await api.me()).student;
       const draft = this.data.draft;
       const customProgram = draft.program.id === 'other' ? { level: draft.program.level, school: draft.program.schoolOriginal || draft.program.school, major: draft.program.major } : undefined;
-      await api.register({ ...draft, campus: undefined, teacherId: undefined, teacherName: undefined, programId: draft.program.id, customProgram, program: undefined, idNumberMasked: undefined, consent: true }, current.id);
-      wx.redirectTo({ url: '/pages/payment/payment' });
+      await api[draft.editing ? 'update' : 'register']({ ...draft, campus: undefined, teacherId: undefined, teacherName: undefined, programId: draft.program.id, customProgram, program: undefined, idNumberMasked: undefined, consent: true }, current.id);
+      wx.removeStorageSync('registrationFormDraft');
+      if (draft.editing) { wx.showToast({ title: '修改已提交', icon: 'success' }); wx.redirectTo({ url: '/pages/my/my' }); }
+      else wx.redirectTo({ url: '/pages/payment/payment' });
     } catch (e) { this.setData({ error: e.message, busy: false }); }
   }
 });

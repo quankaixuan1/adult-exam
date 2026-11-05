@@ -1,4 +1,5 @@
 const api = require('../../services/api');
+const { formatBeijingTime } = require('../../utils/date-time');
 const statusText = {
   pending: '待审核',
   approved: '已通过',
@@ -84,11 +85,13 @@ Page({
     const materials = value.materials || {};
     return {
       ...value,
+      createdAtText: formatBeijingTime(value.createdAt),
       materials,
       initial: String(value.name || '微').slice(0, 1),
       materialsCompleted: ['idFront', 'idBack', 'education', 'photo'].filter(kind => materials[kind] && materials[kind].fileId).length,
       materialsPercent: ['idFront', 'idBack', 'education', 'photo'].filter(kind => materials[kind] && materials[kind].fileId).length * 25,
-      paymentText: value.paymentStatus === 'paid' ? '已缴费' : '请联系报名老师缴费',
+      paymentText: ({ paid: '已缴费', finance_pending: '待审核', teacher_pending: '待审核', payment_rejected: '未通过' })[value.paymentStatus] || '未缴费',
+      paymentBadge: value.paymentStatus === 'teacher_pending' ? 'finance_pending' : ['paid', 'finance_pending', 'payment_rejected'].includes(value.paymentStatus) ? value.paymentStatus : 'pending',
       statusText: statusText[value.status] || '处理中'
     };
   },
@@ -188,7 +191,7 @@ Page({
       this.setData({
         notifications: result.notifications.map(item => ({
           ...item, statusText: statusText[item.status] || '审核状态已更新',
-          timeText: new Date(item.createdAt).toLocaleString()
+          timeText: formatBeijingTime(item.createdAt)
         })),
         unreadTotal: result.unreadTotal,
         notificationError: ''
@@ -239,6 +242,7 @@ Page({
     });
   },
   edit() {
+    if (this.data.registration?.status === 'approved') { wx.showToast({ title: '报名审核已通过，不能修改', icon: 'none' }); return; }
     wx.navigateTo({
       url: '/pages/register/register?mode=edit'
     });

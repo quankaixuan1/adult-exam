@@ -153,32 +153,17 @@ const admin = { _id: 'staff-a', permissions: ['registrations.view', 'registratio
 const organizationAdmin = memberId => ({ _id: `account-${memberId}`, memberId, permissions: ['registrations.view', 'registrations.edit', 'registrations.create', 'registrations.review', 'materials.view'] });
 const manualRegistration = (overrides = {}) => ({ name: '测试考生', phone: '13800000000', level: '专升本', school: '自填大学', major: '测试专业', campus: '下沙校区', teacherId: 'wenyi-rong', ...overrides });
 
-test('admin input normalizes school, prep flag and level before saving', async () => {
+test('admin input normalizes school and level before saving', async () => {
   const db = memoryDatabase();
   const result = await loadApi('admin-api', db).registrationManagement.save({ _id: 'primary' }, manualRegistration({ school: '杭电（高复）', level: '高升本' }));
   assert.equal(result.registration.school, '杭州电子科技大学');
   assert.equal(result.registration.level, '高起本');
-  assert.equal(result.registration.isExamPrepClass, true);
+  assert.equal(result.registration.isExamPrepClass, undefined);
   assert.equal(result.registration.fee, 680);
   assert.equal(db.rows('registrations')[0].schoolOriginal, '杭电（高复）');
 });
 
-test('prep-class filter uses a boolean and does not widen account scope', async () => {
-  const db = memoryDatabase({ registrations: [
-    registration({ teacherId: 'wenyi-rong', isExamPrepClass: true }),
-    registration({ _id: 'b'.repeat(64), teacherId: 'wenyi-rong', isExamPrepClass: false }),
-    registration({ _id: 'c'.repeat(64), teacherId: 'wenyi-liu', isExamPrepClass: true })
-  ] });
-  const api = loadApi('admin-api', db);
-  const actor = organizationAdmin('wenyi-rong');
-  const result = await api.dashboard(actor, { isExamPrepClass: 'true' });
-  assert.deepEqual(Array.from(result.registrations, row => row.id), [studentId]);
-  const nonPrep = await api.dashboard(actor, { isExamPrepClass: 'false' });
-  assert.deepEqual(Array.from(nonPrep.registrations, row => row.id), ['b'.repeat(64)]);
-  await assert.rejects(api.dashboard(actor, { isExamPrepClass: 'invalid' }), { code: 'INVALID_INPUT' });
-});
-
-test('student custom school aliases normalize and retain the prep flag', async () => {
+test('student custom school aliases normalize without the removed prep flag', async () => {
   const db = memoryDatabase({ students: [{ _id: studentId }] });
   const result = await loadApi('student-api', db).main({ action: 'register', data: {
     name: '测试考生', phone: '13800000000', idNumber: '11010519491231002X', gender: '女', ethnicity: '汉',
@@ -188,7 +173,7 @@ test('student custom school aliases normalize and retain the prep flag', async (
   assert.equal(result.ok, true);
   assert.equal(result.data.registration.school, '杭州医学院');
   assert.equal(result.data.registration.level, '高起本');
-  assert.equal(result.data.registration.isExamPrepClass, true);
+  assert.equal(result.data.registration.isExamPrepClass, undefined);
 });
 
 test('cross-campus registration belongs to the signed-in teacher and edits cannot transfer ownership', async () => {
@@ -557,17 +542,20 @@ test('admin polling does not restore read messages and stops while hidden or unm
   assert.equal(listeners.size, 0);
 });
 
- test('offline payment requires teacher then separate finance approval', async () => {
- const db = memoryDatabase({registrations:[registration({teacherId:'wenyi-rong',paymentStatus:'teacher_pending',materials:{paymentProof:{fileId:'cloud://proof'}}})]});
+test('finance alone reviews payment without changing registration status', async () => {
+ const db = memoryDatabase({registrations:[registration({status:'approved',teacherId:'wenyi-rong',paymentStatus:'finance_pending',materials:{paymentProof:{fileId:'cloud://proof'}}})]});
  const api=loadApi('admin-api',db);
  const request={registrationId:studentId,revision:1,decision:'approve'};
- await assert.rejects(api.reviewPayment(organizationAdmin('finance'),request),{code:'FORBIDDEN'});
- await api.reviewPayment(organizationAdmin('wenyi-rong'),request);
- assert.equal(db.rows('registrations')[0].paymentStatus,'finance_pending');
- await assert.rejects(api.reviewPayment(organizationAdmin('wenyi-rong'),{...request,revision:2}),{code:'FORBIDDEN'});
- await api.reviewPayment(organizationAdmin('finance'),{...request,revision:2});
+ await assert.rejects(api.reviewPayment(organizationAdmin('wenyi-rong'),request),{code:'FORBIDDEN'});
+ await api.reviewPayment(organizationAdmin('finance'),request);
  assert.equal(db.rows('registrations')[0].paymentStatus,'paid');
- });
+ assert.equal(db.rows('registrations')[0].status,'approved');
+ await assert.rejects(api.reviewPayment(organizationAdmin('finance'),{...request,revision:2}),{code:'FORBIDDEN'});
+ db.mutate('registrations',studentId,{paymentStatus:'finance_pending'});
+ await api.reviewPayment(organizationAdmin('finance'),{...request,revision:2,decision:'reject',remark:'金额不符'});
+ assert.equal(db.rows('registrations')[0].paymentStatus,'payment_rejected');
+ assert.equal(db.rows('registrations')[0].status,'approved');
+});
 
 test('registration immediately notifies admins and notification failures roll back submission', async () => {
   const db = memoryDatabase({ students: [{ _id: studentId }] });
@@ -623,4 +611,105 @@ test('admin edits study campus, encrypted identity, paid amount and payment proo
     if (previousKey === undefined) delete process.env.PII_ENCRYPTION_KEY;
     else process.env.PII_ENCRYPTION_KEY = previousKey;
   }
+});
+
+test('teacher proof submission and amount edits require finance review independently', async () => {
+ const db = memoryDatabase();
+ const api = loadApi('admin-api',db);
+ const teacher = organizationAdmin('wenyi-rong');
+ const created = (await api.registrationManagement.save(teacher,manualRegistration())).registration;
+ db.mutate('registrations',created.id,{status:'approved'});
+ const proof = { fileName:'proof.png', base64:Buffer.from('89504e470d0a1a0a','hex').toString('base64') };
+ const submitted = (await api.registrationManagement.save(teacher,{...created,registrationId:created.id,paymentProofUpload:proof,actualPaidAmount:'600'})).registration;
+ assert.equal(submitted.paymentStatus,'finance_pending');
+ assert.equal(submitted.status,'approved');
+ await api.reviewPayment(organizationAdmin('finance'),{registrationId:created.id,revision:submitted.revision,decision:'approve'});
+ const changed = (await api.registrationManagement.save(teacher,{...submitted,registrationId:created.id,revision:submitted.revision+1,actualPaidAmount:'500'})).registration;
+ assert.equal(changed.paymentStatus,'finance_pending');
+ assert.equal(changed.status,'approved');
+ assert.equal(changed.paymentRemark,'');
+});
+
+test('finance dashboard filters payment and rejects registration reviews', async () => {
+ const db = memoryDatabase({registrations:[registration({paymentStatus:'finance_pending',status:'approved'}),registration({_id:'b'.repeat(64),paymentStatus:'paid',status:'pending'})]});
+ const api = loadApi('admin-api',db);
+ const actor = organizationAdmin('finance');
+ const result = await api.dashboard(actor,{paymentStatus:'finance_pending'});
+ assert.equal(result.registrations.length,1);
+ assert.equal(result.registrations[0].id,studentId);
+ assert.equal(result.stats.pending,1);
+ assert.equal(result.stats.approved,1);
+ await assert.rejects(api.review(actor,{registrationId:studentId,revision:1,status:'approved'}),{code:'FORBIDDEN'});
+ assert.equal(db.rows('registrations')[0].revision,1);
+});
+
+
+test('legacy teacher-pending proof can be approved directly by finance', async () => {
+ const db = memoryDatabase({registrations:[registration({status:'approved',teacherId:'wenyi-rong',paymentStatus:'teacher_pending',materials:{paymentProof:{fileId:'cloud://proof'}}})]});
+ const api = loadApi('admin-api',db);
+ const request = {registrationId:studentId,revision:1,decision:'approve'};
+ await assert.rejects(api.reviewPayment(organizationAdmin('wenyi-rong'),request),{code:'FORBIDDEN'});
+ const inbox = await api.dashboard(organizationAdmin('finance'),{paymentStatus:'finance_pending'});
+ assert.equal(inbox.registrations.length,1);
+ await api.reviewPayment(organizationAdmin('finance'),request);
+ const saved = db.rows('registrations')[0];
+ assert.equal(saved.paymentStatus,'paid');
+ assert.equal(saved.status,'approved');
+ assert.equal(saved.paymentTeacherId,undefined);
+});
+
+
+test('super admin can perform finance and registration reviews without member permissions', async () => {
+ const db = memoryDatabase({registrations:[registration({paymentStatus:'finance_pending',materials:{paymentProof:{fileId:'cloud://proof'}}})]});
+ const api = loadApi('admin-api',db);
+ const actor = {_id:'primary',permissions:[]};
+ await api.reviewPayment(actor,{registrationId:studentId,revision:1,decision:'approve'});
+ assert.equal(db.rows('registrations')[0].paymentStatus,'paid');
+ await api.review({...actor,memberId:'finance'},{registrationId:studentId,revision:2,status:'approved'});
+ assert.equal(db.rows('registrations')[0].status,'approved');
+ const rights = api.publicAdmin(actor);
+ assert.equal(rights.role,'super');
+ assert.equal(rights.dataScope,'all');
+ assert.ok(rights.permissions.includes('registrations.edit'));
+ await assert.rejects(api.reviewPayment(actor,{registrationId:studentId,revision:3,decision:'approve'}),{code:'FORBIDDEN'});
+});
+
+test('payment proofs append and redistribution with equal total requires finance review', async () => {
+ const db=memoryDatabase(); const api=loadApi('admin-api',db); const actor={_id:'primary'};
+ const proof={fileName:'receipt.png',base64:Buffer.from('89504e470d0a1a0a','hex').toString('base64')};
+ const first=(await api.registrationManagement.save(actor,manualRegistration({paymentBreakdown:{exam:120,materials:0,tuition:0},paymentProofUploads:[proof,proof]}))).registration;
+ assert.equal(first.paymentProofs.length,2); assert.equal(first.actualPaidAmount,120);
+ await api.reviewPayment(actor,{registrationId:first.id,revision:first.revision,decision:'approve'});
+ const second=(await api.registrationManagement.save(actor,{...first,registrationId:first.id,revision:first.revision+1,paymentBreakdown:{exam:20,materials:100,tuition:0},paymentProofUploads:[proof]})).registration;
+ assert.equal(second.paymentProofs.length,3); assert.equal(second.actualPaidAmount,120); assert.equal(second.paymentStatus,'finance_pending');
+ await api.reviewPayment(actor,{registrationId:first.id,revision:second.revision,decision:'approve'});
+ const third=(await api.registrationManagement.save(actor,{...second,registrationId:first.id,revision:second.revision+1,paymentBreakdown:{exam:120,materials:0,tuition:0}})).registration;
+ assert.equal(third.paymentProofs.length,3); assert.equal(third.paymentStatus,'finance_pending');
+});
+
+test('export returns full identity only for scoped export requests', async () => {
+ const {createCipheriv}=require('node:crypto');
+ const iv=Buffer.alloc(12,1), cipher=createCipheriv('aes-256-gcm',Buffer.from('1'.repeat(64),'hex'),iv);
+ const encrypted=Buffer.concat([cipher.update('11010519491231002X','utf8'),cipher.final()]);
+ const db=memoryDatabase({registrations:[registration({teacherId:'wenyi-rong',idNumberLast4:'002X',idNumberEncrypted:{iv:iv.toString('base64'),tag:cipher.getAuthTag().toString('base64'),data:encrypted.toString('base64')}}),registration({_id:'b'.repeat(64),teacherId:'wenyi-liu'})]});
+ const api=loadApi('admin-api',db), actor=organizationAdmin('wenyi-rong');
+ assert.equal((await api.dashboard(actor,{})).registrations[0].idNumber,undefined);
+ const result=await api.dashboard(actor,{exportIdentity:true});
+ assert.equal(result.registrations.length,1);
+ assert.equal(result.registrations[0].idNumber,'11010519491231002X');
+});
+
+test('student edits notify admins atomically and approved registrations are locked', async () => {
+ const db=memoryDatabase({students:[{_id:studentId}]});const api=loadApi('student-api',db);
+ const data={name:'测试考生',phone:'13800000000',idNumber:'11010519491231002X',gender:'女',ethnicity:'汉',education:'高中',currentAddress:'测试地址',politicalStatus:'群众',consent:true,programId:'other',customProgram:{school:'测试大学',level:'高起本',major:'测试专业'}};
+ assert.equal((await api.main({action:'register',data})).ok,true);
+ db.failNotifications=true;
+ assert.equal((await api.main({action:'update',data:{...data,revision:1,phone:'13900000000'}})).ok,false);
+ assert.equal(db.rows('registrations')[0].revision,1);
+ db.failNotifications=false;
+ assert.equal((await api.main({action:'update',data:{...data,revision:1,phone:'13900000000'}})).ok,true);
+ assert.equal(db.rows('notification_events').filter(n=>n.type==='registration_updated').length,1);
+ db.mutate('registrations',studentId,{status:'approved'});
+ assert.equal((await api.main({action:'update',data:{...data,revision:2}})).code,'INVALID_STATE');
+ assert.equal(db.rows('registrations')[0].phone,'13900000000');
 });

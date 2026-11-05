@@ -530,7 +530,6 @@ const publicRegistration = value => value ? {
   teacherId: value.teacherId || '',
   teacherName: value.teacherName || '',
   school: value.school,
-  isExamPrepClass: value.isExamPrepClass === true,
   level: value.level,
   major: value.major,
   duration: value.duration,
@@ -572,7 +571,7 @@ function encryptSensitive(value) {
   return { version: 1, iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: encrypted.toString('base64') };
 }
 
-function validateRegistration(data, currentName) {
+function validateRegistration(data, currentName, currentRecord) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new ApiError('请填写报名信息', 'INVALID_INPUT');
   const name = typeof currentName === 'string' ? currentName : text(data.name, 40);
   const phone = text(data.phone, 11);
@@ -584,7 +583,8 @@ function validateRegistration(data, currentName) {
   const politicalStatus = text(data.politicalStatus, 20);
   const emergencyName = text(data.emergencyName, 40);
   const emergencyPhone = text(data.emergencyPhone, 11);
-  const idError = validateIdNumber(idNumber);
+  const preserveIdentity = !idNumber && !!currentRecord?.idNumberEncrypted;
+  const idError = preserveIdentity ? '' : validateIdNumber(idNumber);
   if (idError) throw new ApiError(idError, 'INVALID_INPUT');
   if (!name || !['男', '女'].includes(gender) || !ethnicity) throw new ApiError('请完整填写有效的身份信息', 'INVALID_INPUT');
   if (!/^1[3-9]\d{9}$/.test(phone)) throw new ApiError('请填写有效的本人手机号', 'INVALID_INPUT');
@@ -596,23 +596,23 @@ function validateRegistration(data, currentName) {
     let normalized;
     try { normalized = normalizeRegistration({ level: text(custom.level, 10), school: text(custom.school, 100) }); }
     catch (error) { throw new ApiError(error.message, 'INVALID_INPUT'); }
-    const { level, school, isExamPrepClass } = normalized;
+    const { level, school } = normalized;
     const major = text(custom.major, 100);
     const rule = programs.find(item => item.level === level);
     if (!rule || !school || !major) throw new ApiError('请选择有效层次并填写学校名称和专业名称（各不超过100字）', 'INVALID_INPUT');
-    program = { id: 'other', level, school, major, duration: rule.duration, fee: rule.fee, studyMode: '非脱产', examCategory: '—', isExamPrepClass, ...(school !== text(custom.school, 100) ? { schoolOriginal: text(custom.school, 100) } : {}) };
+    program = { id: 'other', level, school, major, duration: rule.duration, fee: rule.fee, studyMode: '非脱产', examCategory: '—', ...(school !== text(custom.school, 100) ? { schoolOriginal: text(custom.school, 100) } : {}) };
   }
   if (!program) throw new ApiError('请选择当前开放的学校和专业', 'INVALID_INPUT');
   if (data.consent !== true) throw new ApiError('请先阅读并同意信息使用说明', 'INVALID_INPUT');
   return {
     name, phone, gender, ethnicity,
-    idNumberEncrypted: encryptSensitive(idNumber),
+    ...(preserveIdentity ? {} : { idNumberEncrypted: encryptSensitive(idNumber),
     idNumberHash: createHash('sha256').update(`id:${idNumber}`).digest('hex'),
-    idNumberLast4: idNumber.slice(-4),
+    idNumberLast4: idNumber.slice(-4) }),
     education, workUnit: text(data.workUnit, 100), currentAddress, politicalStatus,
     unionMember: data.unionMember === true, veteran: data.veteran === true,
     emergencyName, emergencyPhone, wechatContact: true,
-    programId: program.id, isExamPrepClass: false, ...program
+    programId: program.id, ...program
   };
 }
 
@@ -678,13 +678,11 @@ async function saveMaterial(student, data) {
   const material = { fileId, fileName: fileName || definition.label, size, status: 'pending', uploadedAt };
   const saved = await withTransaction(db, async transaction => {
     const registration = await transactionRegistration(transaction, student._id);
-    if (kind === 'paymentProof' && ['teacher_pending', 'finance_pending', 'paid'].includes(registration.paymentStatus)) throw new ApiError('凭证正在审核或已确认到账，不能重复提交', 'INVALID_STATE');
     const previous = registration.materials && registration.materials[kind];
     if (previous && previous.fileId === fileId) return { material: previous, repeated: true };
     await transaction.collection('registrations').doc(student._id).update({
       data: {
         [`materials.${kind}`]: material,
-        ...(kind === 'paymentProof' ? { paymentStatus: 'teacher_pending', paymentRemark: '', paymentTeacherId: '', paymentFinanceId: '' } : {}),
         materialsUpdatedAt: uploadedAt,
         updatedAt: uploadedAt,
         status: 'pending',
@@ -805,16 +803,21 @@ async function handle(action, data, openId) {
     return { registration: publicRegistration(registration) };
   }
   if (action === 'update') {
-    const current = await findRegistration(student._id);
-    if (!current) throw new ApiError('尚未提交报名信息', 'NOT_FOUND');
-    if (!Number.isSafeInteger(data.revision) || data.revision !== current.revision) throw new ApiError('报名资料已更新，请返回后重新打开修改页面', 'REVISION_CONFLICT');
-    const clean = validateRegistration(data, current.name);
-    const next = { ...clean, status: 'pending', revision: current.revision + 1, updatedAt: isoNow() };
-    next.isExamPrepClass = current.isExamPrepClass === true || clean.isExamPrepClass === true;
-    const result = await db.collection('registrations').where({ _id: student._id, revision: current.revision }).update({ data: next });
-    if (!result.stats || result.stats.updated !== 1) throw new ApiError('报名资料已更新，请返回后重新打开修改页面', 'REVISION_CONFLICT');
-    await audit(student._id, 'registration_updated', { programId: clean.programId, revision: next.revision });
-    return { registration: publicRegistration({ ...current, ...next }) };
+    let saved;
+    await withTransaction(db, async transaction => {
+      const current = await transactionRegistration(transaction, student._id);
+      if (current.status === 'approved') throw new ApiError('报名审核已通过，不能修改报名资料', 'INVALID_STATE');
+      if (!Number.isSafeInteger(data.revision) || data.revision !== current.revision) throw new ApiError('报名资料已更新，请重新打开修改页面', 'REVISION_CONFLICT');
+      const clean = validateRegistration(data, undefined, current);
+      const now = isoNow();
+      const next = { ...clean, status: 'pending', reviewRemark: '', revision: current.revision + 1, updatedAt: now };
+      await transaction.collection('registrations').doc(student._id).update({ data: next });
+      await addNotification(transaction, { type: 'registration_updated', audience: 'admin', registrationId: student._id,
+        registrationCreatedAt: current.createdAt, version: next.revision, createdAt: now });
+      saved = { ...current, ...next };
+    });
+    await audit(student._id, 'registration_updated', { revision: saved.revision });
+    return { registration: publicRegistration(saved) };
   }
   if (action === 'resetDemo') {
     const current = await findRegistration(student._id);

@@ -23,8 +23,23 @@ Page({
     politicalOptions
   },
 
+  onLoad(query) { this.editMode = query.mode === 'edit'; this.editLoaded = false; },
   async onShow() {
+    if (this.editMode && !this.editLoaded) {
+      try {
+        const { registration: record } = await api.mine();
+        if (!record || record.status === 'approved') {
+          wx.showToast({ title: '报名审核已通过或记录不存在，不能修改', icon: 'none' });
+          wx.navigateBack(); return;
+        }
+        wx.setStorageSync(DRAFT_KEY, { ...record, idNumber: '', editing: true,
+          program: { ...record, id: record.programId || 'other' }, consent: true });
+        this.editLoaded = true;
+      } catch (e) { this.setData({ error: e.message, loading: false }); return; }
+    }
+
     const saved = wx.getStorageSync(DRAFT_KEY) || {};
+    this.setData({ canKeepIdentity: this.editMode && !!saved.idNumberMasked, idNumberMasked: saved.idNumberMasked || '' });
     const form = Object.keys(emptyForm).reduce((result, key) => {
       result[key] = saved[key] === undefined ? emptyForm[key] : saved[key];
       return result;
@@ -44,6 +59,7 @@ Page({
   saveDraft() {
     const saved = wx.getStorageSync(DRAFT_KEY) || {};
     wx.setStorageSync(DRAFT_KEY, {
+      editing: this.editMode === true, revision: saved.revision, idNumberMasked: saved.idNumberMasked || '',
       campus: saved.campus || '', teacherId: saved.teacherId || '', teacherName: saved.teacherName || '',
       ...this.data.form,
       program: saved.program || null,
@@ -60,9 +76,10 @@ Page({
     if (field === 'idNumber') this.setData({ idNumberError: '', idNumberChecked: false });
     this.updateField(field, e.detail.value);
   },
+  identityError(value) { return this.data.canKeepIdentity && !value ? '' : validateIdNumber(value); },
   checkIdNumber(e) {
     const idNumber = String(e.detail.value || '').trim().toUpperCase();
-    this.setData({ 'form.idNumber': idNumber, idNumberError: validateIdNumber(idNumber), idNumberChecked: true }, () => this.saveDraft());
+    this.setData({ 'form.idNumber': idNumber, idNumberError: this.identityError(idNumber), idNumberChecked: true }, () => this.saveDraft());
   },
   chooseGender(e) { this.updateField('gender', this.data.genderOptions[Number(e.detail.value)]); },
   chooseEducation(e) { this.updateField('education', educationOptions[Number(e.detail.value)]); },
@@ -81,7 +98,7 @@ Page({
       [validText(form.name, 40), '请填写姓名（不超过40字）。'],
       [['男', '女'].includes(form.gender), '请选择性别：男或女。'],
       [validText(form.ethnicity, 20), '请填写民族（不超过20字）。'],
-      [!validateIdNumber(form.idNumber), validateIdNumber(form.idNumber)],
+      [!this.identityError(form.idNumber), this.identityError(form.idNumber)],
       [typeof form.phone === 'string' && /^1[3-9]\d{9}$/.test(form.phone), '请填写有效的11位本人手机号。'],
       [educationOptions.includes(form.education), '请选择当前学历。'],
       [validText(form.currentAddress, 160), '请填写现居住地址（不超过160字）。'],
@@ -91,7 +108,7 @@ Page({
       [!(form.emergencyName || form.emergencyPhone) || (typeof form.emergencyPhone === 'string' && /^1[3-9]\d{9}$/.test(form.emergencyPhone)), '如填写第二联系人，请填写有效的11位手机号。']
     ];
     const failed = checks.find(item => !item[0]);
-    this.setData({ form, error: failed ? failed[1] : '', idNumberChecked: true, idNumberError: validateIdNumber(form.idNumber) });
+    this.setData({ form, error: failed ? failed[1] : '', idNumberChecked: true, idNumberError: this.identityError(form.idNumber) });
     this.saveDraft();
     if (failed) {
       wx.showToast({ title: failed[1], icon: 'none', duration: 3000 });

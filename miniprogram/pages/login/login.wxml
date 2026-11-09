@@ -1,0 +1,23 @@
+<view class="container">
+  <view class="hero"><text class="title">管理员登录</text><text class="muted">已绑定账号的老师可直接微信登录，首次使用请先绑定账号。</text></view>
+  <view class="card">
+    <button class="primary large" loading="{{busy}}" disabled="{{busy}}" bindtap="goMine">微信登录</button>
+    <button class="large" disabled="{{busy}}" bindtap="bindTeacher">{{binding ? '收起账号绑定' : '首次使用 · 绑定账号'}}</button>
+    <!-- <view class="notice">测试用</view> -->
+
+  </view>
+  <view wx:if="{{binding}}" class="card">
+    <text class="section">绑定管理员账号</text>
+    <text class="muted">首次绑定需修改密码，新密码也用于电脑后台登录。</text>
+    <text class="label">用户名</text>
+    <input placeholder="如 qiweiliang01" maxlength="32" disabled="{{busy}}" data-key="username" bindinput="input" value="{{username}}" />
+    <text class="label">原密码</text>
+    <input placeholder="输入原管理账号密码" maxlength="128" disabled="{{busy}}" password data-key="password" bindinput="input" value="{{password}}" />
+    <text class="label">新密码</text>
+    <input placeholder="10至128位，不能与原密码相同" maxlength="128" disabled="{{busy}}" password data-key="newPassword" bindinput="input" value="{{newPassword}}" />
+    <text class="label">确认新密码</text>
+    <input placeholder="再次输入新密码" maxlength="128" disabled="{{busy}}" password data-key="confirmPassword" bindinput="input" value="{{confirmPassword}}" />
+    <text wx:if="{{error}}" class="login-error">{{error}}</text>
+    <button class="primary" loading="{{busy}}" disabled="{{busy}}" bindtap="bindAccount">修改密码并绑定微信</button>
+  </view>
+</view>

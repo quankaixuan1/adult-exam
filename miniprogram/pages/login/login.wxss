@@ -1,0 +1,6 @@
+.login-error {
+  display: block;
+  color: #d93025;
+  margin-bottom: 24rpx;
+  line-height: 1.6;
+}

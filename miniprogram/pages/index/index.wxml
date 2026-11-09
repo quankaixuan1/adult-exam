@@ -1,26 +1,18 @@
 <view class="container">
-  <view class="hero showcase"><text class="eyebrow">2026 成人高考</text><text class="title">在线报名服务</text>
+  <view class="hero showcase">
+    <text class="eyebrow">2026 成人高考</text>
+    <text class="title">在线报名服务</text>
   </view>
-  <!-- <view class="process">
-    <view><text class="process-no">01</text><text>微信登录</text></view>
-    <view><text class="process-no">02</text><text>填写志愿</text></view>
-    <view><text class="process-no">03</text><text>核对报名</text></view>
-  </view> -->
   <view class="card welcome-card">
     <text class="section">2026 年招生报名入口</text>
     <text class="muted">请提前准备身份证、学历和本人联系方式，报名信息可暂存后继续填写。</text>
-    <button class="primary large" bindtap="goMine">立即登录报名</button>
+    <text wx:if="{{error}}">{{error}}</text>
+    <button class="primary large" loading="{{busy}}" disabled="{{busy}}" bindtap="goMine">立即登录报名</button>
   </view>
-  <!-- <button class="quiet" bindtap="goMine">已有账号 · 查看我的报名</button> -->
+
   <view class="card welcome-card">
     <text class="section">管理员入口</text>
     <text class="muted">老师首次使用请绑定管理账号</text>
-    <view class="container"><text wx:if="{{error}}">{{error}}</text><button bindtap="bindTeacher">老师首次使用 · 绑定管理账号</button>
-      <view wx:if="{{binding}}" class="card">
-        <input style="height: 89rpx; display: block; box-sizing: border-box" placeholder="现有管理账号" data-key="username" bindinput="input" value="{{username}}" />
-        <input placeholder="管理账号密码" password data-key="password" bindinput="input" value="{{password}}" />
-        <button loading="{{busy}}" disabled="{{busy}}" bindtap="bindAccount">验证并绑定微信</button>
-      </view>
-    </view>
+    <button class="primary large" loading="{{busy}}" disabled="{{busy}}" bindtap="goLogin">登录</button>
   </view>
 </view>

@@ -61,6 +61,15 @@ async function adminDocument(id = "primary") {
   }
 }
 
+// Keep stable account IDs when login usernames change.
+async function adminByUsername(username) {
+  const direct = await adminDocument(digest(`admin:${username}`));
+  if (direct && direct.username === username) return direct;
+  const { data } = await db.collection("admins").where({ username }).limit(2).get();
+  if (data.length > 1) throw new ApiError("账号名称重复，请联系管理员", "INVALID_CREDENTIALS");
+  return data[0] || null;
+}
+
 async function createSession(admin) {
   const token = `adm_${randomBytes(32).toString("hex")}`;
   const expiresAt = new Date(Date.now() + SESSION_MS).toISOString();
@@ -154,7 +163,7 @@ async function login(data) {
   const admin =
     primary && primary.username === username
       ? primary
-      : await adminDocument(digest(`admin:${username}`));
+      : await adminByUsername(username);
   if (!admin || admin.disabled === true)
     throw new ApiError("账号或密码错误", "INVALID_CREDENTIALS");
   const candidate = validPassword(data.password)
@@ -266,8 +275,8 @@ async function accountSave(admin, data) {
   const primary = await adminDocument();
   if (username === primary.username)
     throw new ApiError("主管理员不能在此修改", "INVALID_INPUT");
-  const id = digest(`admin:${username}`);
-  const current = await adminDocument(id);
+  const current = await adminByUsername(username);
+  const id = current ? current._id : digest(`admin:${username}`);
   const memberId = typeof data.memberId === "string" ? data.memberId : "";
   const member = organization.memberById(memberId);
   if (memberId && !member)
@@ -824,7 +833,20 @@ async function wechatIdentity(data, bind = false) {
     const admin = await authenticate(session.token);
     await db.collection('admin_sessions').doc(digest(`admin-session:${session.token}`)).remove();
     if (binding && binding.adminId !== admin._id) throw new ApiError('此微信已绑定其他管理账号', 'FORBIDDEN');
-    if (!binding) await db.collection('admin_wechat_bindings').add({ data: { _id: id, adminId: admin._id, accountCreatedAt: admin.createdAt, createdAt: isoNow() } });
+    if (!binding) {
+      if (!validPassword(data.newPassword)) throw new ApiError('首次绑定请设置10至128位新密码', 'INVALID_INPUT');
+      if (data.newPassword !== data.confirmPassword) throw new ApiError('两次新密码输入不一致', 'INVALID_INPUT');
+      if (data.newPassword === data.password) throw new ApiError('新密码不能与原密码相同', 'INVALID_INPUT');
+      const passwordSalt = randomBytes(16).toString('hex');
+      const changes = { passwordSalt, passwordHash: passwordDigest(data.newPassword, passwordSalt), sessionVersion: randomBytes(16).toString('hex'), passwordChangedAt: isoNow(), updatedAt: isoNow() };
+      await withTransaction(db, async tx => {
+        const current = (await tx.collection('admins').doc(admin._id).get()).data;
+        if (!current || current.disabled || current.passwordHash !== admin.passwordHash || current.createdAt !== admin.createdAt || (current.sessionVersion || 0) !== (admin.sessionVersion || 0)) throw new ApiError('账号信息已变化，请重新输入当前密码', 'FORBIDDEN');
+        await tx.collection('admins').doc(admin._id).update({ data: changes });
+        await tx.collection('admin_wechat_bindings').add({ data: { _id: id, adminId: admin._id, accountCreatedAt: admin.createdAt, createdAt: isoNow() } });
+      });
+      Object.assign(admin, changes);
+    }
     await audit(admin, 'wechat_bound');
     return { role: 'teacher', ...await createSession(admin) };
   }

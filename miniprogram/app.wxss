@@ -50,17 +50,23 @@ page {
 button {
   margin-top: 24rpx;
   font-size: 30rpx;
-  border-radius: 16rpx
+  border-radius: 16rpx;
+  justify-content: center; /* 水平居中 */
+  align-items: center;     /* 垂直居中 */
+  text-align: center;      /* 文本水平对齐 */
+  white-space: nowrap;     /* 不换行 */
+  display: flex
 }
 
 button.primary {
   display: flex;
-  justify-content: center; /* 水平居中 */
-  align-items: center;     /* 垂直居中 */
-  text-align: center;
   background: #245fd4;
   color: #fff
 }
+
+/* button.bind-account{
+  white-space: nowrap;
+} */
 
 button::after {
   border: 0

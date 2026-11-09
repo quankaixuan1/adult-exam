@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 const { randomBytes, createHash, scryptSync } = require('node:crypto');
 const { members } = require('../cloudfunctions/admin-api/organization');
-const usernames = ['qwl','gjf','sp','dbw','lhm','rj','ywh','gyn','jc','zy','htt','kl','ycx','zql','ws','hyh','tls'];
+const usernames = ['qiweiliang01','gaojianfeng01','shaoping01','dengbowen01','liuhuimin01','rongjian01','yangweihong01','gaoyanni01','jiangchi01','zhouyan01','huangtingting01','kelin01','yingchenxia01','zhouqianlu01','wushan01','heyuhao01','tulaoshi01'];
 const names = ['戚卫良','高建锋','邵萍','邓博文','刘慧敏','荣健','杨伟红','高燕妮','姜驰','周燕','黄婷婷','柯琳','应晨霞','周钱露','吴珊','何宇昊','屠老师'];
 function run(table, type, command) {
   const out = execFileSync('tcb', ['-e','cloud1-d2gcxozkl4c789619','db','nosql','execute','--json','--command',JSON.stringify([{TableName:table,CommandType:type,Command:JSON.stringify(command)}])], {encoding:'utf8',timeout:60000});

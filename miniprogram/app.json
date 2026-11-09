@@ -9,7 +9,10 @@
     "pages/confirm/confirm",
     "pages/payment/payment",
     "pages/status/status",
-    "pages/search/search"
+    "pages/search/search",
+    "pages/admin/admin",
+    "pages/web-login/web-login",
+    "pages/referral/referral"
   ],
   "window": {
     "navigationBarTitleText": "成人高考报名",

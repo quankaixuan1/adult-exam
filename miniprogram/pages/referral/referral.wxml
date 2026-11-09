@@ -1,0 +1,14 @@
+<view class="container">
+  <view class="card">
+    <text class="title">学生报名</text>
+    <view wx:if="{{loading}}">正在读取报名邀请…</view>
+    <block wx:if="{{referral}}">
+      <view>报名老师：{{referral.teacherName}}</view>
+      <view>报名校区：{{referral.campus || '待管理老师分配'}}</view>
+      <button class="primary" bindtap="start" loading="{{busy}}" disabled="{{busy}}">
+        微信登录并填写报名
+      </button>
+    </block>
+    <view wx:if="{{error}}">{{error}}</view>
+  </view>
+</view>

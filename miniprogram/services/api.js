@@ -39,6 +39,7 @@ module.exports = {
   config: () => Promise.resolve({ wechatReady: true, demoMode: false, cloudMode: true }),
   login,
   demoLogin: login,
+  resolveReferral: referralId => call('resolveReferral', { referralId }),
   catalog: () => call('catalog'),
   resume: login,
   async me() { requireSignedIn(); return call('me'); },

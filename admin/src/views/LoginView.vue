@@ -1,7 +1,7 @@
 <script setup>
 import { reactive } from 'vue';
-defineProps({ mode: String, busy: Boolean, error: String });
-const emit = defineEmits(['submit']);
+defineProps({ mode: String, busy: Boolean, error: String, qr: Object, qrBusy: Boolean });
+const emit = defineEmits(['submit', 'wechat', 'cancel-wechat']);
 const authForm = reactive({ username: '', displayName: '主管理员', password: '', confirmPassword: '' });
 function submit() { emit('submit', { ...authForm }); authForm.password = ''; authForm.confirmPassword = ''; }
 </script>
@@ -26,11 +26,38 @@ function submit() { emit('submit', { ...authForm }); authForm.password = ''; aut
         <p v-if="error" class="error">{{ error }}</p>
         <button class="primary" :disabled="busy">{{ busy ? '处理中…' : mode === 'bootstrap' ? '创建并进入后台' : '登录' }}</button>
       </form>
+      <section v-if="mode !== 'bootstrap'" class="wechat-login">
+        <button type="button" class="wechat-button" :disabled="busy || qrBusy" @click="emit('wechat')">{{ qrBusy ? '正在生成二维码…' : qr ? '刷新微信登录码' : '微信扫码登录' }}</button>
+        <template v-if="qr">
+          <img :src="qr.image" alt="微信登录小程序码" width="220" height="220" />
+          <p class="muted">微信扫一扫，在小程序确认登录。二维码三分钟有效。</p>
+          <button type="button" @click="emit('cancel-wechat')">取消扫码</button>
+        </template>
+        <p class="muted">首次使用请先在小程序首页绑定老师管理账号。</p>
+      </section>
     </section>
   </main>
 </template>
 
 <style scoped>
+.wechat-login { text-align:center; margin-top:24px; padding-top:20px; border-top:1px solid #e3e8f1; }
+.wechat-login img { display:block; margin:16px auto; }
+.wechat-button {
+  width: 100%;
+  min-height: 48px;
+  padding: 14px 20px;
+  border: 0;
+  border-radius: 10px;
+  background: #07a35a;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.wechat-button:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
 
 
 .auth-shell {

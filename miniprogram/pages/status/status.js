@@ -1,5 +1,6 @@
 const api=require('../../services/api');
 Page({
+ onShareAppMessage(){return {title:'成人高考报名',path:'/pages/index/index'};},
  data:{token:'',result:null,error:'',busy:false},
  onLoad(){this.setData({token:wx.getStorageSync('registrationToken') || wx.getStorageSync('registrationDraftToken') || ''});},
  input(e){this.setData({token:e.detail.value.trim(),result:null,error:''});},

@@ -1,0 +1,5 @@
+const test=require('node:test');const assert=require('node:assert/strict');
+test('server QR requires secret, obtains token and never returns token to caller',async()=>{
+ const {generateCode}=require('../cloudfunctions/admin-api/wechat-code');const previous=process.env.WECHAT_APP_SECRET;
+ try{delete process.env.WECHAT_APP_SECRET;await assert.rejects(generateCode('scene'),{code:'WECHAT_CONFIG_REQUIRED'});process.env.WECHAT_APP_SECRET='test-only';const calls=[];const request=async(path,data)=>{calls.push({path,data});return path==='/cgi-bin/stable_token'?{buffer:Buffer.from(JSON.stringify({access_token:'test-token',expires_in:7200}))}:{type:'image/png',buffer:Buffer.from('image')};};const result=await generateCode('scene',request);assert.equal(result.buffer.toString(),'image');assert.equal(calls[0].data.appid,'wxe1a773261a11fb90');assert.equal(calls[1].data.check_path,false);assert.equal(calls[1].data.env_version,'trial');assert.equal(result.token,undefined);}finally{if(previous===undefined)delete process.env.WECHAT_APP_SECRET;else process.env.WECHAT_APP_SECRET=previous;}
+});

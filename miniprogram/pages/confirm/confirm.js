@@ -1,6 +1,7 @@
 const api = require('../../services/api');
 const { normalizeRegistration } = require('../../data/registration-normalization');
 Page({
+ onShareAppMessage(){return {title:'成人高考报名',path:'/pages/index/index'};},
   data: { draft: null, busy: false, error: '' },
   onLoad() {
     const draft = wx.getStorageSync('registrationFormDraft');

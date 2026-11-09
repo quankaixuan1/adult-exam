@@ -11,6 +11,7 @@ const emptyForm = {
 };
 
 Page({
+ onShareAppMessage(){return {title:'成人高考报名',path:'/pages/index/index'};},
   data: {
     idNumberError: '',
     idNumberChecked: false,
@@ -60,6 +61,7 @@ Page({
     const saved = wx.getStorageSync(DRAFT_KEY) || {};
     wx.setStorageSync(DRAFT_KEY, {
       editing: this.editMode === true, revision: saved.revision, idNumberMasked: saved.idNumberMasked || '',
+      referralId: saved.referralId || '',
       campus: saved.campus || '', teacherId: saved.teacherId || '', teacherName: saved.teacherName || '',
       ...this.data.form,
       program: saved.program || null,

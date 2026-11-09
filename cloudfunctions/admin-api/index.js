@@ -811,12 +811,41 @@ const registrationManagement = require("./registration-management")({
   withTransaction,
 });
 
+// Bindings use a deterministic document id so one WeChat identity cannot bind twice.
+async function wechatIdentity(data, bind = false) {
+  const { OPENID, APPID } = cloud.getWXContext();
+  if (!OPENID || APPID !== 'wxe1a773261a11fb90') throw new ApiError('请从小程序微信登录', 'LOGIN_REQUIRED');
+  const id = digest(`wechat-admin:${APPID}:${OPENID}`);
+  let binding;
+  try { binding = (await db.collection('admin_wechat_bindings').doc(id).get()).data; }
+  catch (e) { if (!/not exist|DOCUMENT_NOT_FOUND/i.test(e.errMsg || e.message || '')) throw e; }
+  if (bind) {
+    const session = await login(data);
+    const admin = await authenticate(session.token);
+    await db.collection('admin_sessions').doc(digest(`admin-session:${session.token}`)).remove();
+    if (binding && binding.adminId !== admin._id) throw new ApiError('此微信已绑定其他管理账号', 'FORBIDDEN');
+    if (!binding) await db.collection('admin_wechat_bindings').add({ data: { _id: id, adminId: admin._id, accountCreatedAt: admin.createdAt, createdAt: isoNow() } });
+    await audit(admin, 'wechat_bound');
+    return { role: 'teacher', ...await createSession(admin) };
+  }
+  if (!binding) return { role: 'student' };
+  const admin = await adminDocument(binding.adminId);
+  if (!admin || admin.disabled || admin.createdAt !== binding.accountCreatedAt) throw new ApiError('管理账号已停用，请联系管理员', 'FORBIDDEN');
+  return { role: 'teacher', ...await createSession(admin) };
+}
+
+const webLogin = require('./web-login')({ db, cloud, ApiError, withTransaction, adminDocument, createSession });
+const createReferral = require('./referrals')({ db, ApiError });
 async function handle(action, data) {
+  if (['createWebLogin', 'confirmWebLogin', 'pollWebLogin'].includes(action)) return webLogin(action, data);
+  if (action === "wechatLogin") return wechatIdentity(data);
+  if (action === "bindWechat") return wechatIdentity(data, true);
   if (action === "bootstrapStatus")
     return { initialized: Boolean(await adminDocument()) };
   if (action === "bootstrap") return bootstrap(data);
   if (action === "login") return login(data);
   const admin = await authenticate(data.token);
+  if (action === 'createReferral') return createReferral(admin);
   if (action === "registrationOptions")
     return registrationManagement.options(admin);
   if (action === "saveRegistration")
@@ -863,15 +892,27 @@ exports.main = async (event) => {
       event && event.data && typeof event.data === "object" ? event.data : {};
     return { ok: true, data: await handle(action, data) };
   } catch (error) {
-    console.error(
-      "admin-api failed",
-      error.code || error.errCode || error.message,
-    );
+    const underlyingCode = error && (error.errCode ?? error.code);
+    console.error("admin-api failed", JSON.stringify({
+      action: event && event.action,
+      code: underlyingCode ?? null,
+      errCode: error && error.errcode,
+      errMsg: error && (error.errmsg ?? error.message),
+      message: error && error.message,
+      name: error && error.name,
+      stack: error && error.stack,
+    }));
     const known = error instanceof ApiError;
+    if (String(underlyingCode) === '-501001') return {
+      ok: false,
+      code: 'QR_PERMISSION_DENIED',
+      message: '微信登录码权限未配置：请在云开发控制台为 admin-api 授权 wxacode.getUnlimited，并发布包含微信登录页的小程序',
+    };
+    const cloudMessage = error && error.errMsg ? error.errMsg : error && error.message;
     return {
       ok: false,
-      code: known ? error.code : "CLOUD_ERROR",
-      message: known ? error.message : "管理服务暂时不可用，请稍后再试",
+      code: known ? error.code : underlyingCode ? String(underlyingCode) : "CLOUD_ERROR",
+      message: known ? error.message : cloudMessage ? `云函数执行异常：${cloudMessage}` : "管理服务暂时不可用，请稍后再试",
     };
   }
 };

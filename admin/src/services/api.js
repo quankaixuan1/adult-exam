@@ -27,6 +27,7 @@ export async function call(action, data = {}, options = {}) {
     if (!result || result.ok !== true) {
       const error = new Error(result && result.message ? result.message : '管理服务暂时不可用');
       error.code = result && result.code;
+      console.error('admin-api request failed', { action, code: error.code, message: error.message });
       throw error;
     }
     return result.data;

@@ -43,7 +43,7 @@ function validateFields() {
     else if (value.length > max) fieldErrors[key] = `${label}不能超过${max}字`;
   }
   if (form.phone && !/^1[3-9]\d{9}$/.test(form.phone)) fieldErrors.phone = '请填写有效的11位手机号';
-  if (!options.campuses.includes(form.campus)) fieldErrors.campus = '请选择报名校区';
+  if (!( !form.campus && ['principal','admissions','finance','financeStaff'].includes(options.members.find(m => m.id === form.teacherId)?.position)) && !options.campuses.includes(form.campus)) fieldErrors.campus = '请选择报名校区';
   if (!options.members.some(member => member.id === form.teacherId)) fieldErrors.teacherId = '请选择所属老师';
   if (!levels.includes(form.level)) fieldErrors.level = '请选择报考层次';
   if (form.registrationSource && !registrationSources.includes(form.registrationSource)) fieldErrors.registrationSource = '请选择有效的报名来源';

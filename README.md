@@ -40,7 +40,7 @@
 
 列表、详情、筛选、统计分析、材料链接、审核、修改及站内消息都按同一组织范围校验。统计分析覆盖当前账号全部授权记录，独立于列表的临时筛选，分别按校区、老师、层次和院校汇总。
 
-部署时上传完整 admin-api（含 access.js、organization.js、programs.js、registration-management.js、notifications.js），上传完整 student-api（含 organization.js），构建并发布 admin/dist，再编译发布小程序。无需新增集合；根据云端提示为 campus、teacherId 和列表排序字段创建索引。验证：`node --test tests/*.test.js`；构建：`npm run build --prefix admin`。
+部署时上传完整 admin-api（含 access.js、organization.js、programs.js、registration-management.js、notifications.js、referrals.js、wechat-code.js），上传完整 student-api（含 organization.js、referrals.js），构建并发布 admin/dist，再编译发布小程序。招生二维码功能需要在管理环境的数据库中创建 `registration_referrals` 集合，集合权限建议设为仅服务端访问；如需索引，根据云端提示为 campus、teacherId 和列表排序字段创建索引。验证：`node --test tests/*.test.js`；构建：`npm run build --prefix admin`。
 
 电脑后台双击 start-admin.command 启动本地预览，build-admin.command 生成 admin/dist；构建后需另行上传静态托管才会更新线上后台。
 
@@ -77,3 +77,33 @@
 根目录不再提供含义模糊的 start/test 命令。仅在明确需要旧服务时使用 pnpm run start:legacy；历史测试入口为 pnpm run test:legacy，不能代表云开发版本测试。
 
 详细说明和原文档见 archive/local-backend/README.md。本次归档保留原依赖、锁文件及 .private 数据，没有变更线上云服务。
+
+## 原生小程序管理端
+
+首页“立即登录报名”通过 admin-api 的 wechatLogin 判断身份：未绑定微信进入原学生端；已绑定且有效的管理账号进入原生管理页。老师首次点击“老师首次使用 · 绑定管理账号”，验证已有管理账号密码后绑定当前微信。微信身份仅取云函数 getWXContext，并校验小程序 AppID；客户端传入的身份不作为授权依据。管理页复用原有数据范围、权限、审核版本校验。
+
+包含报名筛选/分页、详情、材料预览、报名与财务审核、新增/修改报名、缴费凭证上传、费用明细、范围统计、招生专业、未读消息及主管理员账号维护。手机导出使用 CSV 分享文件，可用 Excel 打开；Web 端仍使用 XLSX。微信首次绑定不会自动给学生授予教师权限。
+
+部署前在同一云环境创建 admin_wechat_bindings 集合，安全规则设为 `{"read":false,"write":false}`，仅云函数访问。上传完整 admin-api，再编译并发布 miniprogram。绑定记录不含密码或明文微信标识；停用/删除账号后无法微信登录，删除重建的同名账号不会继承原微信绑定。需要解绑时由云端管理员删除该集合内对应 adminId 的绑定记录。退出仅撤销当前会话，不解除绑定。
+
+验证：`node --test tests/admin-wechat.test.js`。发布前需在微信开发者工具及真机验证：学生登录、老师首次绑定及再次登录、停用账号、不同岗位数据范围、材料预览、CSV 分享、审核并发冲突和凭证上传。此次本地测试不代表已经部署或完成真机验收。
+
+## 网页微信扫码登录
+
+网页登录页新增“微信扫码登录”，通过小程序码打开 pages/web-login/web-login，已绑定老师账号的微信须明确点击“确认是我本人登录”。浏览器每两秒检查一次，二维码三分钟失效且只能兑换一次管理会话。二维码中只有随机请求 ID，浏览器持有独立兑换密钥；学生、停用账号以及确认后被撤销权限的账号不能兑换登录。账号密码登录继续保留。
+
+上线顺序：
+1. 创建 admin_web_logins 集合，客户端安全规则为 `{"read":false,"write":false}`；确认 admin_wechat_bindings 已建好。过期记录可定期清理，服务端无论是否清理均拒绝过期码。
+2. 先发布包含 pages/web-login/web-login 的小程序正式版本，二维码默认进入正式版。
+3. 上传完整 admin-api（含 web-login.js 和 config.json，新增 wxacode.getUnlimited 云调用权限）。
+4. 构建并发布 admin/dist。用已绑定老师微信、未绑定学生微信分别验收；校验三分钟过期、一次性兑换以及停用账号拒绝登录。
+
+本地检查：`node --test tests/admin-web-login.test.js tests/admin-wechat.test.js`；`npm run build --prefix admin`。小程序码生成依据 CloudBase 云调用文档：https://docs.cloudbase.net/recipes/add-share-with-params-miniprogram 。本地构建不等于已发布或已完成真实扫码验收。
+
+### 网页二维码生成修正
+
+网页调用不具备小程序云调用身份，会返回 INVALID_WX_ACCESS_TOKEN。因此网页二维码已改为服务端通过 stable_token 和 getwxacodeunlimit 生成。需在 admin-api 云函数环境变量中设置 `WECHAT_APP_SECRET`（AppID wxe1a773261a11fb90 对应的小程序密钥），只在云端配置，不放入前端、仓库或聊天。原有 PII_ENCRYPTION_KEY 必须保留。代码包须包含 wechat-code.js。二维码使用正式版且检查页面存在，正式版必须包含 pages/web-login/web-login。
+
+### 当前扫码测试模式
+
+2026-11-06 按测试需求将二维码默认版本改为 trial（体验版），check_path=false；已在线验证二维码生成成功以及轮询返回 pending。无需提交审核或发布正式版，但需上传包含登录确认页的代码并设为体验版，扫码微信需有体验权限。仅真机调试不会更新体验版。后续正式启用时在 admin-api 设置 WECHAT_LOGIN_ENV_VERSION=release，将同时恢复正式页面路径校验；此配置覆盖上文正式版默认说明。

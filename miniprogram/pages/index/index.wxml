@@ -11,5 +11,16 @@
     <text class="muted">请提前准备身份证、学历和本人联系方式，报名信息可暂存后继续填写。</text>
     <button class="primary large" bindtap="goMine">立即登录报名</button>
   </view>
-  <button class="quiet" bindtap="goMine">已有账号 · 查看我的报名</button>
+  <!-- <button class="quiet" bindtap="goMine">已有账号 · 查看我的报名</button> -->
+  <view class="card welcome-card">
+    <text class="section">管理员入口</text>
+    <text class="muted">老师首次使用请绑定管理账号</text>
+    <view class="container"><text wx:if="{{error}}">{{error}}</text><button bindtap="bindTeacher">老师首次使用 · 绑定管理账号</button>
+      <view wx:if="{{binding}}" class="card">
+        <input style="height: 89rpx; display: block; box-sizing: border-box" placeholder="现有管理账号" data-key="username" bindinput="input" value="{{username}}" />
+        <input placeholder="管理账号密码" password data-key="password" bindinput="input" value="{{password}}" />
+        <button loading="{{busy}}" disabled="{{busy}}" bindtap="bindAccount">验证并绑定微信</button>
+      </view>
+    </view>
+  </view>
 </view>

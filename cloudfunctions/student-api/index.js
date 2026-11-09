@@ -758,7 +758,9 @@ async function login(openId) {
   return { student: publicStudent(student) };
 }
 
+const resolveReferral = require('./referrals')({ db, ApiError });
 async function handle(action, data, openId) {
+  if (action === 'resolveReferral') { const { sourceAdminId, ...publicInfo } = await resolveReferral(data.referralId); return publicInfo; }
   if (action === 'login') return login(openId);
   if (action === 'catalog') return { demo: false, programs };
   if (action === 'legacyStatus') throw new ApiError('旧查询码暂未迁移到云端，请联系机构工作人员', 'NOT_MIGRATED');
@@ -784,12 +786,8 @@ async function handle(action, data, openId) {
     const existing = await findRegistration(student._id);
     if (existing) throw new ApiError('该账号已经提交过报名信息', 'ALREADY_REGISTERED');
     const clean = validateRegistration(data);
-    // 兼容旧客户端：没有归属的报名仅对全校区管理岗位可见，待其分配。
-    if (data.campus || data.teacherId) {
-      const teacher = organization.memberById(data.teacherId);
-      if (!organization.campuses.includes(data.campus) || !teacher) throw new ApiError('请选择有效的报名校区和报名老师', 'INVALID_INPUT');
-      Object.assign(clean, { campus: data.campus, teacherId: teacher.id, teacherName: teacher.name });
-    }
+    // Ownership is resolved from a server-issued referral, never client teacher fields.
+    if (data.referralId) Object.assign(clean, await resolveReferral(data.referralId));
     const now = isoNow();
     const registration = { _id: student._id, studentId: student._id, ...clean, status: 'pending', paymentStatus: 'pending', revision: 1, consentVersion: 'cloud-v1', createdAt: now, updatedAt: now };
     await withTransaction(db, async transaction => {

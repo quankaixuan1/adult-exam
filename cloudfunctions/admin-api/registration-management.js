@@ -14,12 +14,13 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
     return result;
   }
   function affiliation(admin, data, current) {
-    const campus = text(data.campus, 30, '报名校区', true);
-    if (!campuses.includes(campus)) fail('请选择有效的报名校区');
+    const campus = text(data.campus, 30, '报名校区');
     let teacherId = text(data.teacherId, 100, '所属老师', true);
     if (!current && !isManagement(admin)) teacherId = membership(admin)?.id || '';
     const teacher = memberById(teacherId);
     if (!teacher) fail('请选择有效的所属老师');
+    const unassignedManagement = !campus && ['principal', 'admissions', 'finance', 'financeStaff'].includes(teacher.position);
+    if (!unassignedManagement && !campuses.includes(campus)) fail('请选择有效的报名校区');
     if (current && !isManagement(admin) && (campus !== current.campus || teacherId !== current.teacherId)) {
       throw new ApiError('调整校区或所属老师需由管理岗位操作', 'FORBIDDEN');
     }

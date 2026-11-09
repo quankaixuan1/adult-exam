@@ -1,4 +1,4 @@
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { call } from '../services/api';
 export function useAuth() {
 const TOKEN_KEY = 'adultExamAdminSession';
@@ -7,6 +7,33 @@ const busy = ref(false);
 const error = ref('');
 const token = ref(localStorage.getItem(TOKEN_KEY) || '');
 
+const qr = ref(null);
+const qrBusy = ref(false);
+let timer, generation = 0;
+function stopWechat() { generation++; clearTimeout(timer); qr.value = null; qrBusy.value = false; }
+async function startWechat() {
+  stopWechat(); const current = generation; qrBusy.value = true; error.value = '';
+  try {
+    const challenge = await call('createWebLogin', {}, { loading: false });
+    if (current !== generation) return;
+    qr.value = challenge;
+    async function poll() {
+      if (current !== generation) return;
+      if (Date.now() >= challenge.expiresAt) { stopWechat(); error.value = '二维码已过期，请重新获取'; return; }
+      try {
+        const result = await call('pollWebLogin', { id: challenge.id, secret: challenge.secret }, { loading: false });
+        if (current !== generation) return;
+        if (result.status === 'confirmed') {
+          stopWechat(); token.value = result.token; localStorage.setItem(TOKEN_KEY, result.token); mode.value = 'dashboard'; return;
+        }
+        timer = setTimeout(poll, 2000);
+      } catch (e) { if (current === generation) { stopWechat(); showError(e); } }
+    }
+    timer = setTimeout(poll, 2000);
+  } catch (e) { if (current === generation) showError(e); }
+  finally { if (current === generation) qrBusy.value = false; }
+}
+onUnmounted(stopWechat);
 function showError(e) { error.value = e.message || '操作未完成，请重试'; }
 async function initialize() {
   error.value = '';
@@ -22,6 +49,7 @@ async function initialize() {
 }
 
 async function submitAuth(authForm) {
+  stopWechat();
   if (busy.value) return;
   error.value = '';
   if (mode.value === 'bootstrap' && authForm.password !== authForm.confirmPassword) {
@@ -48,6 +76,7 @@ async function submitAuth(authForm) {
 }
 
 async function logout() {
+  stopWechat();
   try { if (token.value) await call('logout', { token: token.value }); } catch (_) {}
   token.value = '';
   localStorage.removeItem(TOKEN_KEY);
@@ -56,5 +85,5 @@ async function logout() {
 }
 
 onMounted(initialize);
-return { mode, busy, error, token, submitAuth, logout };
+return { mode, busy, error, token, submitAuth, logout, qr, qrBusy, startWechat, stopWechat };
 }

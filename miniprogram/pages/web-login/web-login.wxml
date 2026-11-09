@@ -1,0 +1,6 @@
+<view class="container">
+  <view class="card"><text class="title">{{done?'已确认登录':'登录网页管理后台'}}</text>
+    <view>{{done?'请返回电脑继续操作。':'请确认是你本人在电脑上发起登录。确认后，网页将获得当前老师账号的管理权限。'}}</view>
+    <view wx:if="{{error}}">{{error}}</view><button wx:if="{{!done}}" class="primary" bindtap="confirm" loading="{{busy}}" disabled="{{busy}}">确认是我本人登录</button><button bindtap="cancel">{{done?'返回首页':'取消登录'}}</button>
+  </view>
+</view>

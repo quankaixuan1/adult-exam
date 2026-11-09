@@ -1,0 +1,2 @@
+const api=require('../../services/admin');
+Page({data:{id:'',busy:false,done:false,error:''},onLoad(query){this.setData({id:decodeURIComponent(query.scene||'')});},async confirm(){if(this.data.busy||this.data.done)return;this.setData({busy:true,error:''});try{await api.call('confirmWebLogin',{id:this.data.id});this.setData({done:true});}catch(e){this.setData({error:e.message});}finally{this.setData({busy:false});}},cancel(){wx.reLaunch({url:'/pages/index/index'});}});

@@ -3,6 +3,7 @@ const organization = require('../../data/organization');
 const DRAFT_KEY = 'registrationFormDraft';
 
 Page({
+ onShareAppMessage(){return {title:'成人高考报名',path:'/pages/index/index'};},
   data: {
     error: '',
     programs,
@@ -76,7 +77,7 @@ Page({
 
   saveDraft() {
     const draft = wx.getStorageSync(DRAFT_KEY) || {};
-    wx.setStorageSync(DRAFT_KEY, { ...draft, program: this.data.program, consent: this.data.consent, campus: this.data.campus, teacherId: this.data.teacherId, teacherName: this.data.teachers.find(item => item.id === this.data.teacherId)?.name || '' });
+    wx.setStorageSync(DRAFT_KEY, { ...draft, program: this.data.program, consent: this.data.consent, campus: draft.referralId || draft.editing ? draft.campus : '', teacherId: draft.referralId || draft.editing ? draft.teacherId : '', teacherName: draft.referralId || draft.editing ? draft.teacherName : '' });
   },
 
   chooseCampus(e) {
@@ -131,7 +132,7 @@ Page({
       this.setData({ error: '请先阅读报名、调剂和隐私说明，并勾选同意。' });
       return;
     }
-    // 校区和老师选择已隐藏，清除旧草稿归属，待后台分配。
+    // 扫码归属保存在草稿中，由服务端在提交时核验。
     this.setData({ campus: '', teacherId: '', teacherLabel: '', error: '' });
     this.saveDraft();
     wx.navigateTo({ url: '/pages/confirm/confirm' });

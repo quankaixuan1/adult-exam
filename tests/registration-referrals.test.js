@@ -1,0 +1,6 @@
+const test=require('node:test');const assert=require('node:assert/strict');
+const factory=require('../cloudfunctions/student-api/referrals');
+function setup(memberId){const admin={_id:'account',memberId,createdAt:'original'};const referral={teacherId:memberId,adminId:'account',accountCreatedAt:'original'};const db={collection:name=>({doc:()=>({get:async()=>({data:name==='admins'?admin:referral})})})};class ApiError extends Error{}return {admin,resolve:factory({db,ApiError})};}
+test('teacher QR resolves trusted teacher and campus',async()=>{const x=setup('wenyi-rong');const r=await x.resolve('a'.repeat(30));assert.equal(r.teacherId,'wenyi-rong');assert.equal(r.campus,'文一校区');assert.equal(r.sourceAdminId,'account');});
+test('management referral retains management ownership and blank campus',async()=>{const x=setup('admissions');const r=await x.resolve('b'.repeat(30));assert.equal(r.teacherId,'admissions');assert.equal(r.campus,'');});
+test('invalid, disabled, reassigned and recreated account codes rejected',async()=>{for(const mutation of [a=>a.disabled=true,a=>a.memberId='finance',a=>a.createdAt='new']){const x=setup('wenyi-rong');mutation(x.admin);await assert.rejects(x.resolve('a'.repeat(30)));}await assert.rejects(setup('wenyi-rong').resolve('fake'));});

@@ -15,9 +15,10 @@ function post(path, data) {
 }
 function apiError(result) { const error = new Error('微信接口错误 ' + result.errcode); error.errCode = result.errcode; return error; }
 async function generateCode(scene, request = post, page = 'pages/web-login/web-login') {
-  // Testing uses the uploaded trial version; production can explicitly select release.
-  const version = process.env.WECHAT_LOGIN_ENV_VERSION || 'trial';
-  if (!['trial', 'develop', 'release'].includes(version)) throw new Error('WECHAT_LOGIN_ENV_VERSION 配置无效');
+  // Referral codes are distributed to students and must open the published app.
+  const versionKey = page === 'pages/referral/referral' ? 'WECHAT_REFERRAL_ENV_VERSION' : 'WECHAT_LOGIN_ENV_VERSION';
+  const version = process.env[versionKey] || (page === 'pages/referral/referral' ? 'release' : 'trial');
+  if (!['trial', 'develop', 'release'].includes(version)) throw new Error(versionKey + ' 配置无效');
   const secret = process.env.WECHAT_APP_SECRET;
   if (!secret) { const error = new Error('请在 admin-api 云函数环境变量中配置 WECHAT_APP_SECRET'); error.code = 'WECHAT_CONFIG_REQUIRED'; throw error; }
   for (let attempt = 0; attempt < 2; attempt++) {

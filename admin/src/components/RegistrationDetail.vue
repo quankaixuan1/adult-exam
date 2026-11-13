@@ -80,16 +80,13 @@ async function saveReview() {
 <template>
   <div class="modal-backdrop" @click.self="emit('close')">
     <section class="modal"><button class="close" @click="emit('close')">×</button>
+
       <p class="eyebrow">报名详情</p>
-      <h2>{{ selected.name }}</h2>
-      <MaterialList v-if="canViewMaterials" :registration="selected" :token="token" />
-      <section v-else class="permission-notice">
-        <h3>报名材料</h3>
-        <p>当前账号没有证件材料查看权限，请联系主管理员在“账号与权限”中授权。</p>
+      <section class="">
+        <h2>{{ selected.name }} - {{ selected.studentNo || '未提供' }}</h2>
       </section>
 
       <h3>报名资料</h3>
-
       <div class="detail-grid">
         <span>联系电话<b>{{ showValue(selected.phone) }}</b></span>
         <span>身份证号<b>{{ showValue(selected.idNumberMasked) }}</b></span>
@@ -104,7 +101,7 @@ async function saveReview() {
         <span>报考层次<b>{{ showValue(selected.level) }}</b></span>
         <span>学校<b>{{ showValue(selected.school) }}</b></span>
         <span>专业<b>{{ showValue(selected.major) }}</b></span>
-        <span>历史费用合计<b>{{ selected.fee == null ? '待核对' : '¥' + selected.fee }}</b></span>
+        <!-- <span>历史费用合计<b>{{ selected.fee == null ? '待核对' : '¥' + selected.fee }}</b></span> -->
         <span>实际缴费金额<b>{{ selected.actualPaidAmount == null ? '未填写' : '¥' + selected.actualPaidAmount }}</b></span>
         <span>报名来源<b>{{ selected.registrationSource || '未填写' }}</b></span><span>介绍人<b>{{ selected.referrer || '未填写' }}</b></span>
         <span>就读校区<b>{{ selected.studyCampus || '待定' }}</b></span>
@@ -118,7 +115,15 @@ async function saveReview() {
           </b></span>
         <span>报名状态<b>{{ statusLabels[selected.status] }}</b></span>
       </div>
+      <MaterialList v-if="canViewMaterials" :registration="selected" :token="token" />
+      <section v-else class="permission-notice">
+        <h3>报名材料</h3>
+        <p>当前账号没有证件材料查看权限，请联系主管理员在“账号与权限”中授权。</p>
+      </section>
       <p class="record-note">备注：{{ selected.note || '未填写' }}</p>
+
+
+
       <section class="review-panel">
         <h3>缴费审核</h3>
         <p>缴费状态：

@@ -27,7 +27,7 @@ const personalFields = [
 const schools = computed(() => [...new Set(options.programs.filter(p => p.level === form.level).map(p => p.school))]);
 const majors = computed(() => options.programs.filter(p => p.level === form.level && p.school === form.school));
 const programChanged = computed(() => !props.registration || ['level', 'school', 'major'].some(key => form[key] !== props.registration[key]));
-const feeText = computed(() => !form.level ? '请先选择层次' : programChanged.value ? (form.level === '高起本' ? '5年 · 非脱产 · 报名费680元' : '2.5年 · 非脱产 · 报名费600元') : `${props.registration.duration || '—'} · ${props.registration.studyMode || '—'} · 原记录费用${props.registration.fee ?? '—'}元`);
+const feeText = computed(() => !form.level ? '请先选择层次' : programChanged.value ? (form.level === '高起本' ? '5年 · 非脱产' : '2.5年 · 非脱产') : `${props.registration.duration || '—'} · ${props.registration.studyMode || '—'} · 原记录费用${props.registration.fee ?? '—'}元`);
 onMounted(async () => {
   try {
     Object.assign(options, await call('registrationOptions', { token: props.token }));

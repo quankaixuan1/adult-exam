@@ -26,9 +26,8 @@ test('same-name teachers remain isolated and invalid membership cannot use legac
   assert.equal(canAccess({ _id: 'primary' }, {}), true);
   assert.equal(canAccess({ _id: 'legacy', schools: ['院校A'] }, { school: '院校A' }), true);
 });
-test('organization copies and deployed catalog stay synchronized', () => {
+test('organization copies stay synchronized', () => {
   const root = path.resolve(__dirname, '..');
   const canonical = fs.readFileSync(path.join(root, 'cloudfunctions/admin-api/organization.js'), 'utf8');
   for (const file of ['cloudfunctions/student-api/organization.js', 'miniprogram/data/organization.js']) assert.equal(fs.readFileSync(path.join(root, file), 'utf8'), canonical);
-  assert.deepEqual(require('../cloudfunctions/admin-api/programs'), require('../miniprogram/data/programs'));
 });

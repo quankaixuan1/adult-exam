@@ -27,7 +27,13 @@ const personalFields = [
 const schools = computed(() => [...new Set(options.programs.filter(p => p.level === form.level).map(p => p.school))]);
 const majors = computed(() => options.programs.filter(p => p.level === form.level && p.school === form.school));
 const programChanged = computed(() => !props.registration || ['level', 'school', 'major'].some(key => form[key] !== props.registration[key]));
-const feeText = computed(() => !form.level ? '请先选择层次' : programChanged.value ? (form.level === '高起本' ? '5年 · 非脱产' : '2.5年 · 非脱产') : `${props.registration.duration || '—'} · ${props.registration.studyMode || '—'} · 原记录费用${props.registration.fee ?? '—'}元`);
+const selectedProgram = computed(() => options.programs.find(p => p.level === form.level && p.school === form.school && p.major === form.major));
+const feeText = computed(() => {
+  if (!form.level) return '请先选择层次';
+  if (!programChanged.value) return `${props.registration.duration || '—'} · ${props.registration.studyMode || '—'} · 原记录费用${props.registration.fee ?? '—'}元`;
+  const rule = selectedProgram.value || options.programs.find(p => p.level === form.level);
+  return rule ? `${rule.duration} · ${rule.studyMode} · 报名费${rule.fee}元` : '当前层次暂无费用信息';
+});
 onMounted(async () => {
   try {
     Object.assign(options, await call('registrationOptions', { token: props.token }));

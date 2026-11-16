@@ -16,488 +16,25 @@ const materialKinds = {
 };
 const MAX_MATERIAL_SIZE = 10 * 1024 * 1024;
 
-const programs = [
-  {
-    "id": "zjtie-gqz-kj",
-    "level": "高起专",
-    "school": "浙江经济职业技术学院",
-    "major": "大数据与会计",
-    "examCategory": "文理兼招",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "zjtie-gqz-dz",
-    "level": "高起专",
-    "school": "浙江经济职业技术学院",
-    "major": "电子商务",
-    "examCategory": "文理兼招",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "zjtie-gqz-sj",
-    "level": "高起专",
-    "school": "浙江经济职业技术学院",
-    "major": "大数据技术",
-    "examCategory": "文理兼招",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-8a34be91e3851982",
-    "level": "高起专",
-    "school": "浙江经济职业技术学院",
-    "major": "国际经济与贸易",
-    "examCategory": "文理兼招",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-4ade33782461a81f",
-    "level": "高起专",
-    "school": "浙江经济职业技术学院",
-    "major": "金融服务与管理",
-    "examCategory": "文理兼招",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-e7b372d8aeeb4e09",
-    "level": "高起专",
-    "school": "浙江经济职业技术学院",
-    "major": "酒店管理与数字化运营",
-    "examCategory": "文理兼招",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "zjtie-gqz-gs",
-    "level": "高起专",
-    "school": "浙江经济职业技术学院",
-    "major": "工商企业管理",
-    "examCategory": "文理兼招",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-9c3fc2b1246f3d77",
-    "level": "高起专",
-    "school": "浙江经济职业技术学院",
-    "major": "数字媒体技术",
-    "examCategory": "文理兼招",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "zjtie-gqz-sc",
-    "level": "高起专",
-    "school": "浙江经济职业技术学院",
-    "major": "市场营销",
-    "examCategory": "文理兼招",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-3a88db8d1c1105df",
-    "level": "高起专",
-    "school": "浙江经济职业技术学院",
-    "major": "智能控制技术",
-    "examCategory": "文理兼招",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-7d0ad62a1ff0819a",
-    "level": "高起专",
-    "school": "浙江经济职业技术学院",
-    "major": "中小企业创业与经营",
-    "examCategory": "文理兼招",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "zjtie-gqz-wlw",
-    "level": "高起专",
-    "school": "浙江经济职业技术学院",
-    "major": "物联网应用技术",
-    "examCategory": "理工类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-fd6113fcdd9d5e9f",
-    "level": "高起专",
-    "school": "浙江经济职业技术学院",
-    "major": "汽车检测与维修技术",
-    "examCategory": "理工类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-7175161735856eca",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "工商管理",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-d8361aa682818165",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "会计学",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-fe243555df1d95e6",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "人力资源管理",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-ea026fcd9fe9df9b",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "财务管理",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-7979f448a863f9a2",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "市场营销",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-9339245f6e3b72be",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "电子商务",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-ef0b6fc85408aaf0",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "行政管理",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-a5f920e84f6ba83d",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "酒店管理",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-578686311c6bb358",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "旅游管理",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-c45a290b076a6003",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "工程管理",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-da414fd796f4ecd2",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "物流管理",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-2e90e2fc02ba4c4f",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "国际经济与贸易",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-70bb4640bc07df8e",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "金融学",
-    "examCategory": "文史类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-19211ebeb341637e",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "英语",
-    "examCategory": "文史类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-8f52694df0d581ba",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "汉语言文学",
-    "examCategory": "文史类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-6f2ca15bf75dc9ba",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "法学",
-    "examCategory": "法学类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-45393c1e272dc415",
-    "level": "专升本",
-    "school": "浙江工商大学",
-    "major": "社会工作",
-    "examCategory": "法学类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "hdu-zsb-fx",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "法学",
-    "examCategory": "法学类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "hdu-zsb-jx",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "机械设计制造及其自动化",
-    "examCategory": "理工类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-6f8f9f0b3b2c1a07",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "车辆工程",
-    "examCategory": "理工类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "hdu-zsb-dq",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "电气工程及其自动化",
-    "examCategory": "理工类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "hdu-zsb-dzxx",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "电子信息工程",
-    "examCategory": "理工类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "hdu-zsb-jsj",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "计算机科学与技术",
-    "examCategory": "理工类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-6ee4b0345b74b959",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "软件工程",
-    "examCategory": "理工类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-6622b52d1d89a523",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "网络工程",
-    "examCategory": "理工类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-a71a9045e26170fc",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "数字媒体技术",
-    "examCategory": "理工类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "hdu-zsb-ai",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "人工智能",
-    "examCategory": "理工类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-e3735f89aea731f0",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "智能制造工程",
-    "examCategory": "理工类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-d2de07fa46e30fa1",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "信息管理与信息系统",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-4a34eab791c76566",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "金融学",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-e321b08faf95457b",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "工商管理(含人力资源、物流管理、电子商务方向)",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "hdu-zsb-kj",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "会计学",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "program-b1f64b25e7e86093",
-    "level": "专升本",
-    "school": "杭州电子科技大学",
-    "major": "财务管理",
-    "examCategory": "经管类",
-    "duration": "2.5年",
-    "studyMode": "非脱产",
-    "fee": 600
-  },
-  {
-    "id": "hdu-gqb-jsj",
-    "level": "高起本",
-    "school": "杭州电子科技大学",
-    "major": "计算机科学与技术",
-    "examCategory": "理工类",
-    "duration": "5年",
-    "studyMode": "非脱产",
-    "fee": 680
-  },
-  {
-    "id": "hdu-gqb-gs",
-    "level": "高起本",
-    "school": "杭州电子科技大学",
-    "major": "工商管理",
-    "examCategory": "文史类",
-    "duration": "5年",
-    "studyMode": "非脱产",
-    "fee": 680
+async function fetchProgramCatalog() {
+  let response;
+  try {
+    response = await cloud.callFunction({
+      name: 'admin-api',
+      data: { action: 'catalog' }
+    });
+  } catch (error) {
+    console.error('admin-api catalog request failed', error.errCode || error.message);
+    throw new ApiError('招生专业目录暂时不可用，请稍后重试', 'CATALOG_UNAVAILABLE');
   }
-];
+  const result = response && response.result;
+  if (!result || result.ok !== true || !Array.isArray(result.data?.programs)) {
+    console.error('admin-api returned an invalid catalog response');
+    throw new ApiError('招生专业目录暂时不可用，请稍后重试', 'CATALOG_UNAVAILABLE');
+  }
+  return result.data.programs;
+}
+
 
 class ApiError extends Error {
   constructor(message, code = 'REQUEST_FAILED') {
@@ -571,7 +108,7 @@ function encryptSensitive(value) {
   return { version: 1, iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: encrypted.toString('base64') };
 }
 
-function validateRegistration(data, currentName, currentRecord) {
+function validateRegistration(data, currentName, currentRecord, programs) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new ApiError('请填写报名信息', 'INVALID_INPUT');
   const name = typeof currentName === 'string' ? currentName : text(data.name, 40);
   const phone = text(data.phone, 11);
@@ -762,7 +299,6 @@ const resolveReferral = require('./referrals')({ db, ApiError });
 async function handle(action, data, openId) {
   if (action === 'resolveReferral') { const { sourceAdminId, ...publicInfo } = await resolveReferral(data.referralId); return publicInfo; }
   if (action === 'login') return login(openId);
-  if (action === 'catalog') return { demo: false, programs };
   if (action === 'legacyStatus') throw new ApiError('旧查询码暂未迁移到云端，请联系机构工作人员', 'NOT_MIGRATED');
 
   const student = await requireStudent(openId);
@@ -785,7 +321,8 @@ async function handle(action, data, openId) {
   if (action === 'register') {
     const existing = await findRegistration(student._id);
     if (existing) throw new ApiError('该账号已经提交过报名信息', 'ALREADY_REGISTERED');
-    const clean = validateRegistration(data);
+    const programs = await fetchProgramCatalog();
+    const clean = validateRegistration(data, undefined, undefined, programs);
     // Ownership is resolved from a server-issued referral, never client teacher fields.
     if (data.referralId) Object.assign(clean, await resolveReferral(data.referralId));
     const now = isoNow();
@@ -801,12 +338,13 @@ async function handle(action, data, openId) {
     return { registration: publicRegistration(registration) };
   }
   if (action === 'update') {
+    const programs = await fetchProgramCatalog();
     let saved;
     await withTransaction(db, async transaction => {
       const current = await transactionRegistration(transaction, student._id);
       if (current.status === 'approved') throw new ApiError('报名审核已通过，不能修改报名资料', 'INVALID_STATE');
       if (!Number.isSafeInteger(data.revision) || data.revision !== current.revision) throw new ApiError('报名资料已更新，请重新打开修改页面', 'REVISION_CONFLICT');
-      const clean = validateRegistration(data, undefined, current);
+      const clean = validateRegistration(data, undefined, current, programs);
       const now = isoNow();
       const next = { ...clean, status: 'pending', reviewRemark: '', revision: current.revision + 1, updatedAt: now };
       await transaction.collection('registrations').doc(student._id).update({ data: next });
@@ -828,10 +366,11 @@ async function handle(action, data, openId) {
 
 exports.main = async event => {
   try {
-    const { OPENID } = cloud.getWXContext();
-    if (!OPENID) throw new ApiError('无法识别当前微信账号', 'LOGIN_REQUIRED');
     const action = event && typeof event.action === 'string' ? event.action : '';
     const data = event && event.data && typeof event.data === 'object' ? event.data : {};
+    if (action === 'catalog') return { ok: true, data: { demo: false, programs: await fetchProgramCatalog() } };
+    const { OPENID } = cloud.getWXContext();
+    if (!OPENID) throw new ApiError('无法识别当前微信账号', 'LOGIN_REQUIRED');
     return { ok: true, data: await handle(action, data, OPENID) };
   } catch (error) {
     console.error('student-api failed', error.code || error.errCode || error.message);

@@ -6,10 +6,10 @@ function cloudError(result) {
   return error;
 }
 
-async function call(action, data = {}) {
+async function call(action, data = {}, functionName = 'student-api') {
   let response;
   try {
-    response = await wx.cloud.callFunction({ name: 'student-api', data: { action, data } });
+    response = await wx.cloud.callFunction({ name: functionName, data: { action, data } });
   } catch (cause) {
     const error = new Error('无法连接云服务，请稍后重试');
     error.cause = cause;
@@ -40,7 +40,7 @@ module.exports = {
   login,
   demoLogin: login,
   resolveReferral: referralId => call('resolveReferral', { referralId }),
-  catalog: () => call('catalog'),
+  catalog: () => call('catalog', {}, 'admin-api'),
   resume: login,
   async me() { requireSignedIn(); return call('me'); },
   async mine() { requireSignedIn(); return call('mine'); },

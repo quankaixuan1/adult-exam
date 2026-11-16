@@ -1,4 +1,3 @@
-// 来源：专业列表.xlsx；前后端目录须同步更新。
 module.exports = [
   {
     "id": "zjtie-gqz-kj",
@@ -434,7 +433,37 @@ module.exports = [
     "id": "program-e321b08faf95457b",
     "level": "专升本",
     "school": "杭州电子科技大学",
-    "major": "工商管理(含人力资源、物流管理、电子商务方向)",
+    "major": "工商管理",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "hdu-zsb-gs-hr",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "工商管理（人力资源方向）",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "hdu-zsb-gs-wl",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "工商管理（物流管理方向）",
+    "examCategory": "经管类",
+    "duration": "2.5年",
+    "studyMode": "非脱产",
+    "fee": 600
+  },
+  {
+    "id": "hdu-zsb-gs-ds",
+    "level": "专升本",
+    "school": "杭州电子科技大学",
+    "major": "工商管理（电子商务方向）",
     "examCategory": "经管类",
     "duration": "2.5年",
     "studyMode": "非脱产",

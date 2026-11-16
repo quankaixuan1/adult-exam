@@ -94,7 +94,9 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
     if (!current || current.level !== level || current.school !== school || current.major !== major) {
       const program = programs.find(p => p.level === level && p.school === school && p.major === major);
       Object.assign(next, { programId: program?.id || 'other', level, school, major,
-        duration: rule.duration, fee: rule.fee, studyMode: '非脱产', examCategory: program?.examCategory || '—' });
+        duration: program?.duration || rule.duration, fee: program?.fee ?? rule.fee,
+        studyMode: program?.studyMode || rule.studyMode || '非脱产',
+        examCategory: program?.examCategory || '—' });
     }
     return next;
   }

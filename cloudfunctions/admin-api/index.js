@@ -728,7 +728,7 @@ async function reviewPayment(admin, data) {
     const member = membership(admin);
     if (!['finance_pending', 'teacher_pending'].includes(current.paymentStatus) || (!isSuper(admin) && !['finance', 'financeStaff'].includes(member?.position)))
       throw new ApiError('缴费凭证须由财务老师或超级管理员审核', 'FORBIDDEN');
-    if (!current.materials?.paymentProof?.fileId)
+    if (data.decision === "approve" && !current.materials?.paymentProof?.fileId)
       throw new ApiError("尚未上传缴费凭证", "INVALID_STATE");
     const paymentStatus = data.decision === 'reject' ? 'payment_rejected' : 'paid';
     const now = isoNow(),
@@ -858,6 +858,7 @@ async function wechatIdentity(data, bind = false) {
 
 const webLogin = require('./web-login')({ db, cloud, ApiError, withTransaction, adminDocument, createSession });
 const createReferral = require('./referrals')({ db, ApiError });
+const programs = require('./programs');
 async function handle(action, data) {
   if (['createWebLogin', 'confirmWebLogin', 'pollWebLogin'].includes(action)) return webLogin(action, data);
   if (action === "wechatLogin") return wechatIdentity(data);
@@ -866,6 +867,8 @@ async function handle(action, data) {
     return { initialized: Boolean(await adminDocument()) };
   if (action === "bootstrap") return bootstrap(data);
   if (action === "login") return login(data);
+  if (action === "catalog")
+    return { demo: false, programs };
   const admin = await authenticate(data.token);
   if (action === 'createReferral') return createReferral(admin);
   if (action === "registrationOptions")

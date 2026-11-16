@@ -7,6 +7,7 @@ const { createHash } = require('node:crypto');
 
 const root = path.resolve(__dirname, '..');
 const studentId = createHash('sha256').update('student:test-openid').digest('hex');
+const programs = require('../cloudfunctions/admin-api/programs');
 const clone = value => structuredClone(value);
 const get = (object, key) => key.split('.').reduce((value, part) => value?.[part], object);
 function set(object, key, value) {
@@ -134,7 +135,11 @@ function memoryDatabase(seed = {}) {
 
 function loadApi(name, db) {
   const directory = path.join(root, 'cloudfunctions', name);
-  const cloud = { init() {}, database: () => db, getWXContext: () => ({ OPENID: 'test-openid' }), deleteFile: async () => ({}), uploadFile: async ({ cloudPath }) => ({ fileID: `cloud://test/${cloudPath}` }) };
+  const cloud = { init() {}, database: () => db, getWXContext: () => ({ OPENID: 'test-openid' }), callFunction: async ({ name, data }) => {
+    assert.equal(name, 'admin-api');
+    assert.equal(data.action, 'catalog');
+    return { result: { ok: true, data: { demo: false, programs } } };
+  }, deleteFile: async () => ({}), uploadFile: async ({ cloudPath }) => ({ fileID: `cloud://test/${cloudPath}` }) };
   const context = vm.createContext({
     require: name => name === 'wx-server-sdk' ? cloud : name.startsWith('./') ? require(path.join(directory, name)) : require(name),
     exports: {}, Buffer, process: { env: { PII_ENCRYPTION_KEY: '1'.repeat(64) } }, console: { error() {} }
@@ -712,4 +717,21 @@ test('student edits notify admins atomically and approved registrations are lock
  db.mutate('registrations',studentId,{status:'approved'});
  assert.equal((await api.main({action:'update',data:{...data,revision:2}})).code,'INVALID_STATE');
  assert.equal(db.rows('registrations')[0].phone,'13900000000');
+});
+
+
+test('finance can reject missing payment proof but cannot approve it', async () => {
+ const db=memoryDatabase({registrations:[registration({status:'approved',teacherId:'wenyi-rong',paymentStatus:'finance_pending',materials:{}})]});
+ const api=loadApi('admin-api',db);
+ const actor=organizationAdmin('finance');
+ const request={registrationId:studentId,revision:1,decision:'approve'};
+ await assert.rejects(api.reviewPayment(actor,request),{code:'INVALID_STATE'});
+ await assert.rejects(api.reviewPayment(actor,{...request,decision:'reject'}),{code:'INVALID_INPUT'});
+ await api.reviewPayment(actor,{...request,decision:'reject',remark:'请补传缴费凭证'});
+ const record=db.rows('registrations')[0];
+ assert.equal(record.paymentStatus,'payment_rejected');
+ assert.equal(record.paymentRemark,'请补传缴费凭证');
+ assert.equal(record.revision,2);
+ assert.equal(record.status,'approved');
+ assert.ok(db.rows('audit_logs').some(row=>row.action==='payment_reviewed'));
 });

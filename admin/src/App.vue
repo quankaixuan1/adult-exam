@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useAuth } from './composables/useAuth';
 import { loading } from './composables/useLoading';
 import { useNotifications } from './composables/useNotifications';
@@ -7,10 +7,12 @@ import ReferralCode from './components/ReferralCode.vue';
 import AdminLayout from './layouts/AdminLayout.vue';
 import LoginView from './views/LoginView.vue';
 import ProgramsView from './views/ProgramsView.vue';
+import MyAccountView from './views/MyAccountView.vue';
 import AccountsView from './views/AccountsView.vue';
 import RegistrationsView from './views/RegistrationsView.vue';
-const { mode, busy, error, token, submitAuth, logout, qr, qrBusy, startWechat, stopWechat } = useAuth();
+const { recovery, mode, busy, error, token, submitAuth, logout, qr, qrBusy, startWechat, stopWechat } = useAuth();
 const tab = ref('registrations');
+watch(mode, value => { if (value === 'dashboard') tab.value = recovery.value ? 'my-account' : 'registrations'; });
 const admin = ref(null);
 const registrations = ref(null);
 const accounts = ref(null);
@@ -46,6 +48,7 @@ async function openNotification(item) {
   <ReferralCode :token="token"/>
   <RegistrationsView ref="registrations" v-show="tab === 'registrations'" :token="token" :admin="admin" @admin="admin = $event" @expired="logout"/>
   <AccountsView v-if="tab === 'accounts' && admin?.role === 'super'" ref="accounts" :token="token"/>
+  <MyAccountView v-if="tab === 'my-account'" :token="token" :recovery="recovery" @changed="logout"/>
   <ProgramsView v-if="tab === 'programs'"/>
 </AdminLayout>
 <Teleport to="body">

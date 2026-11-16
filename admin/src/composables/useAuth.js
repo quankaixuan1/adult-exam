@@ -7,11 +7,13 @@ const busy = ref(false);
 const error = ref('');
 const token = ref(localStorage.getItem(TOKEN_KEY) || '');
 
+const recovery = ref(false);
 const qr = ref(null);
 const qrBusy = ref(false);
 let timer, generation = 0;
 function stopWechat() { generation++; clearTimeout(timer); qr.value = null; qrBusy.value = false; }
-async function startWechat() {
+async function startWechat(recover = false) {
+  recovery.value = recover === true;
   stopWechat(); const current = generation; qrBusy.value = true; error.value = '';
   try {
     const challenge = await call('createWebLogin', {}, { loading: false });
@@ -50,6 +52,7 @@ async function initialize() {
 
 async function submitAuth(authForm) {
   stopWechat();
+  recovery.value = false;
   if (busy.value) return;
   error.value = '';
   if (mode.value === 'bootstrap' && authForm.password !== authForm.confirmPassword) {
@@ -85,5 +88,5 @@ async function logout() {
 }
 
 onMounted(initialize);
-return { mode, busy, error, token, submitAuth, logout, qr, qrBusy, startWechat, stopWechat };
+return { recovery, mode, busy, error, token, submitAuth, logout, qr, qrBusy, startWechat, stopWechat };
 }

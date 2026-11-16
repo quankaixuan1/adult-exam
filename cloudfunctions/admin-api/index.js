@@ -70,13 +70,14 @@ async function adminByUsername(username) {
   return data[0] || null;
 }
 
-async function createSession(admin) {
+async function createSession(admin, authMethod = "password") {
   const token = `adm_${randomBytes(32).toString("hex")}`;
   const expiresAt = new Date(Date.now() + SESSION_MS).toISOString();
   await db.collection("admin_sessions").add({
     data: {
       _id: digest(`admin-session:${token}`),
       adminId: admin._id,
+      authMethod,
       sessionVersion: admin.sessionVersion || 0,
       expiresAt,
       createdAt: isoNow(),
@@ -209,6 +210,7 @@ function publicAdmin(admin) {
           : "legacy",
     role: isSuper(admin) ? "super" : "staff",
     permissions: isSuper(admin) ? permissionOptions : admin.permissions || [],
+    canDeleteRegistrations: isManagement(admin),
     schools: admin.schools || [],
     classIds: admin.classIds || [],
     disabled: admin.disabled === true,
@@ -870,6 +872,32 @@ async function handle(action, data) {
   if (action === "catalog")
     return { demo: false, programs };
   const admin = await authenticate(data.token);
+  if (action === 'myAccount') return publicAdmin(admin);
+  if (action === 'changePassword') {
+    if (!validPassword(data.newPassword)) throw new ApiError('新密码须为10至128位', 'INVALID_INPUT');
+    if (data.newPassword !== data.confirmPassword) throw new ApiError('两次新密码输入不一致', 'INVALID_INPUT');
+    if (data.recovery === true) {
+      const session = (await db.collection('admin_sessions').doc(digest(`admin-session:${data.token}`)).get()).data;
+      if (session.authMethod !== 'wechat' || Date.now() - Date.parse(session.createdAt) > 10 * 60 * 1000)
+        throw new ApiError('请重新通过微信扫码验证后重设密码', 'FORBIDDEN');
+    } else {
+      if (!validPassword(data.password) || !timingSafeEqual(Buffer.from(passwordDigest(data.password, admin.passwordSalt), 'hex'), Buffer.from(admin.passwordHash, 'hex')))
+        throw new ApiError('原密码错误', 'INVALID_CREDENTIALS');
+    }
+    if (passwordDigest(data.newPassword, admin.passwordSalt) === admin.passwordHash) throw new ApiError('新密码不能与原密码相同', 'INVALID_INPUT');
+    const passwordSalt = randomBytes(16).toString('hex');
+    await withTransaction(db, async tx => {
+      const current = (await tx.collection('admins').doc(admin._id).get()).data;
+      if (!current || current.disabled || current.passwordHash !== admin.passwordHash || current.createdAt !== admin.createdAt || (current.sessionVersion || 0) !== (admin.sessionVersion || 0))
+        throw new ApiError('账号信息已变化，请重新登录', 'LOGIN_REQUIRED');
+      await tx.collection('admins').doc(admin._id).update({ data: {
+        passwordSalt, passwordHash: passwordDigest(data.newPassword, passwordSalt),
+        sessionVersion: randomBytes(16).toString('hex'), passwordChangedAt: isoNow(), updatedAt: isoNow()
+      } });
+    });
+    await audit(admin, 'password_changed');
+    return { changed: true };
+  }
   if (action === 'createReferral') return createReferral(admin);
   if (action === "registrationOptions")
     return registrationManagement.options(admin);
@@ -885,6 +913,19 @@ async function handle(action, data) {
   if (action === "saveAccount") return accountSave(admin, data);
   if (action === "deleteAccount") return accountDelete(admin, data);
   if (action === "materialLink") return materialLink(admin, data);
+  if (action === "deleteRegistration") {
+    if (!isManagement(admin)) throw new ApiError("仅管理人员可删除报名记录", "FORBIDDEN");
+    if (!/^[a-f0-9]{64}$/.test(data.registrationId || ""))
+      throw new ApiError("报名记录无效", "INVALID_INPUT");
+    await scopedRegistration(admin, data.registrationId);
+    await withTransaction(db, async tx => {
+      await tx.collection("registrations").doc(data.registrationId).remove();
+      await tx.collection("audit_logs").doc(`registration-delete-${randomBytes(16).toString("hex")}`).set({ data: {
+        adminId: admin._id, action: "registration_deleted", registrationId: data.registrationId, createdAt: isoNow()
+      } });
+    });
+    return { success: true };
+  }
   if (action === "registrationDetail") {
     if (!/^[a-f0-9]{64}$/.test(data.registrationId || ""))
       throw new ApiError("报名记录无效", "INVALID_INPUT");

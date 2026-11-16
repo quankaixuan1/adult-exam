@@ -85,3 +85,27 @@ test('binding form validates confirmation and sends new password without retaini
  assert.equal(submitted.a,'bindWechat');assert.equal(submitted.d.newPassword,'changed-password');
  assert.equal(page.data.password,'');assert.equal(page.data.newPassword,'');assert.equal(page.data.confirmPassword,'');
 });
+
+test('password changes verify current password and revoke all previous sessions', async () => {
+ const x=setup();
+ const first=await x.call('login',{username:'boss',password:'secure-password'});
+ const second=await x.call('login',{username:'boss',password:'secure-password'});
+ const data={token:first.data.token,password:'wrong-password',newPassword:'another-password',confirmPassword:'another-password'};
+ assert.equal((await x.call('changePassword',data)).ok,false);
+ assert.equal((await x.call('changePassword',{...data,recovery:true})).ok,false);
+ assert.equal((await x.call('changePassword',{...data,password:'secure-password'})).ok,true);
+ for(const token of [first.data.token,second.data.token]) assert.equal((await x.call('myAccount',{token})).code,'LOGIN_REQUIRED');
+ assert.equal((await x.call('login',{username:'boss',password:'secure-password'})).ok,false);
+ assert.equal((await x.call('login',{username:'boss',password:'another-password'})).ok,true);
+});
+test('recovery requires fresh server-recorded WeChat authentication', async () => {
+ const x=setup();const login=await x.call('login',{username:'boss',password:'secure-password'});
+ const session=[...x.stores.admin_sessions.values()][0];
+ const data={token:login.data.token,recovery:true,newPassword:'recovered-password',confirmPassword:'recovered-password'};
+ assert.equal((await x.call('changePassword',data)).ok,false);
+ session.authMethod='wechat';session.createdAt=new Date(Date.now()-11*60*1000).toISOString();
+ assert.equal((await x.call('changePassword',data)).ok,false);
+ session.createdAt=new Date().toISOString();
+ assert.equal((await x.call('changePassword',data)).ok,true);
+ assert.equal((await x.call('login',{username:'boss',password:'recovered-password'})).ok,true);
+});

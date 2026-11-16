@@ -86,35 +86,36 @@ async function saveReview() {
         <h2>{{ selected.name }} - {{ selected.studentNo || '未提供' }}</h2>
       </section>
 
-      <h3>报名资料</h3>
-      <div class="detail-grid">
-        <span>联系电话<b>{{ showValue(selected.phone) }}</b></span>
-        <span>身份证号<b>{{ showValue(selected.idNumberMasked) }}</b></span>
-        <span>性别与民族<b>{{ showValue(selected.gender) }} · {{ showValue(selected.ethnicity) }}</b></span>
-        <span>学历<b>{{ showValue(selected.education) }}</b></span>
-        <span>工作单位<b>{{ selected.workUnit || '未填写' }}</b></span>
-        <span>学制 / 学习形式<b>{{ showValue(selected.duration) }} / {{ showValue(selected.studyMode) }}</b></span>
-        <span>政治面貌<b>{{ showValue(selected.politicalStatus) }}</b></span>
-        <span>现居住地址<b>{{ showValue(selected.currentAddress) }}</b></span>
-        <span>第二联系人<b>{{ selected.emergencyName ? selected.emergencyName + ' · ' + selected.emergencyPhone : '未填写' }}</b></span>
-        <span>工会会员 / 退役军人<b>{{ showBoolean(selected.unionMember) }} / {{ showBoolean(selected.veteran) }}</b></span>
-        <span>报考层次<b>{{ showValue(selected.level) }}</b></span>
-        <span>学校<b>{{ showValue(selected.school) }}</b></span>
-        <span>专业<b>{{ showValue(selected.major) }}</b></span>
-        <!-- <span>历史费用合计<b>{{ selected.fee == null ? '待核对' : '¥' + selected.fee }}</b></span> -->
-        <span>实际缴费金额<b>{{ selected.actualPaidAmount == null ? '未填写' : '¥' + selected.actualPaidAmount }}</b></span>
-        <span>报名来源<b>{{ selected.registrationSource || '未填写' }}</b></span><span>介绍人<b>{{ selected.referrer || '未填写' }}</b></span>
-        <span>就读校区<b>{{ selected.studyCampus || '待定' }}</b></span>
-        <span>报名校区<b>{{ selected.campus || '待分配' }}</b></span>
-        <span>考试类别<b>{{ selected.examCategory || '—' }}</b></span>
-        <span>报名老师<b>{{ selected.teacherName || '未提供' }}</b></span>
-        <span>学生编号<b>{{ selected.studentNo || '未提供' }}</b></span>
-        <span>来源<b>{{ selected.source === 'excel-original-990' ? '原表导入，第' + selected.sourceRow + '行' : selected.source === 'admin' ? '后台录入' : '小程序' }}</b></span>
-        <span>缴费状态<b>
-            <PaymentStatus :status="selected.paymentStatus" />
-          </b></span>
-        <span>报名状态<b>{{ statusLabels[selected.status] }}</b></span>
-      </div>
+      <section class="info-section info-basic">
+        <h3>基本信息</h3>
+        <div class="detail-grid"><span>联系电话<b>{{ showValue(selected.phone) }}</b></span>
+<span>身份证号<b>{{ showValue(selected.idNumberMasked) }}</b></span>
+<span>性别与民族<b>{{ showValue(selected.gender) }} · {{ showValue(selected.ethnicity) }}</b></span>
+<span>学历<b>{{ showValue(selected.education) }}</b></span>
+<span>工作单位<b>{{ selected.workUnit || '未填写' }}</b></span>
+<span>政治面貌<b>{{ showValue(selected.politicalStatus) }}</b></span>
+<span>现居住地址<b>{{ showValue(selected.currentAddress) }}</b></span>
+<span>第二联系人<b>{{ selected.emergencyName ? selected.emergencyName + ' · ' + selected.emergencyPhone : '未填写' }}</b></span>
+<span>工会会员 / 退役军人<b>{{ showBoolean(selected.unionMember) }} / {{ showBoolean(selected.veteran) }}</b></span>
+
+
+
+
+<span>学生编号<b>{{ selected.studentNo || '未提供' }}</b></span>
+<span>来源<b>{{ selected.source === 'excel-original-990' ? '原表导入，第' + selected.sourceRow + '行' : selected.source === 'admin' ? '后台录入' : '小程序' }}</b></span>
+        </div>
+      </section>
+      <section class="info-section info-program">
+        <h3>志愿信息</h3>
+        <div class="detail-grid"><span>学制 / 学习形式<b>{{ showValue(selected.duration) }} / {{ showValue(selected.studyMode) }}</b></span>
+<span>报考层次<b>{{ showValue(selected.level) }}</b></span>
+<span>学校<b>{{ showValue(selected.school) }}</b></span>
+<span>专业<b>{{ showValue(selected.major) }}</b></span>
+<span>就读校区<b>{{ selected.studyCampus || '待定' }}</b></span>
+<span>考试类别<b>{{ selected.examCategory || '—' }}</b></span>
+<span>报名状态<b>{{ statusLabels[selected.status] }}</b></span>
+        </div>
+      </section>
       <MaterialList v-if="canViewMaterials" :registration="selected" :token="token" />
       <section v-else class="permission-notice">
         <h3>报名材料</h3>
@@ -124,8 +125,12 @@ async function saveReview() {
 
 
 
-      <section class="review-panel">
-        <h3>缴费审核</h3>
+      <section class="info-section info-payment">
+        <h3>缴费信息</h3>
+        <div class="detail-grid"><span>报名校区<b>{{ selected.campus || '待分配' }}</b></span>
+<span>所属老师<b>{{ selected.teacherName || '未提供' }}</b></span>
+<span>报名来源<b>{{ selected.registrationSource || '未填写' }}</b></span>
+<span>介绍人<b>{{ selected.referrer || '未填写' }}</b></span></div>
         <p>缴费状态：
           <PaymentStatus :status="selected.paymentStatus" />
         </p>
@@ -168,6 +173,13 @@ async function saveReview() {
 </template>
 
 <style scoped>
+.info-section { margin: 18px 0; padding: 18px; border: 1px solid; border-radius: 12px; }
+.info-section h3 { margin: 0 0 16px; color: #26344e; font-size: 17px; }
+.info-basic { background: #eff6ff; border-color: #d4e5fb; }
+.info-program { background: #f0f9f3; border-color: #d1ead9; }
+.info-payment { background: #fff8eb; border-color: #f1dfbb; }
+.info-section .detail-grid { padding: 0; background: transparent; }
+
 .record-note {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

@@ -18,6 +18,18 @@ const editing = ref(false), editRecord = ref(null), statistics = ref(null);
 const statLabels = { campus: '按校区', teacherId: '按所属老师', level: '按层次', school: '按院校' };
 const canCreate = computed(() => data.admin?.role === 'super' || data.admin?.permissions?.includes('registrations.create'));
 const canEdit = computed(() => data.admin?.role === 'super' || data.admin?.permissions?.includes('registrations.edit'));
+const canDelete = computed(() => data.admin?.canDeleteRegistrations === true);
+const deleting = ref(false);
+async function deleteRegistration(item) {
+  if (deleting.value || !window.confirm(`确定删除“${item.name}”的报名记录吗？删除后无法恢复。`)) return;
+  deleting.value = true;
+  error.value = '';
+  try {
+    await call('deleteRegistration', { token: props.token, registrationId: item.id });
+    await Promise.all([loadDashboard(rows.value.length === 1 ? Math.max(1, data.page - 1) : data.page), loadFilterOptions(), statistics.value ? showStatistics() : Promise.resolve()]);
+  } catch (e) { showError(e); }
+  finally { deleting.value = false; }
+}
 const filters = reactive({ school: '', major: '', level: '', classId: '', studyCampus: '', teacherName: '', status: '', paymentStatus: '' });
 const filterOptions = reactive({ school: [], major: [], level: [], classId: [], studyCampus: [], teacherName: [] });
 const filterFields = [
@@ -191,12 +203,12 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
               <th>考生</th>
               <th>学校与专业</th>
               <th>层次</th>
-              <th>就读校区 / 所属老师</th>
-              <th>材料</th>
+              <th>校区/老师</th>
+              <!-- <th>材料</th> -->
               <th>提交时间</th>
               <th>报名状态</th>
 
-              <th></th>
+              <th class="row-actions">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -209,11 +221,11 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
               <td><b>{{ item.school }}</b><small>{{ item.major }}</small></td>
               <td>{{ item.level }}</td>
               <td>{{ item.studyCampus || '待定' }}<small>{{ item.teacherName || '待分配' }}</small></td>
-              <td>{{ materialCount(item) }} / 4 项</td>
+              <!-- <td>{{ materialCount(item) }} / 4 项</td> -->
               <td>{{ new Date(item.createdAt).toLocaleString('zh-CN') }}</td>
               <td><span class="status" :class="item.status">{{ statusLabels[item.status] }}</span></td>
 
-              <td><button class="link-button" @click="openReview(item)">查看详情</button><button v-if="canEdit" class="link-button" @click="editRegistration(item)">修改</button></td>
+              <td class="row-actions"><button class="link-button" @click="openReview(item)">查看详情</button><button v-if="canEdit" class="link-button" @click="editRegistration(item)">修改</button><button v-if="canDelete" class="link-button delete-button" :disabled="deleting" @click="deleteRegistration(item)">删除</button></td>
             </tr>
             <tr v-if="!rows.length">
               <td colspan="8" class="empty">暂无符合条件的报名记录</td>
@@ -230,6 +242,20 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
   </div>
 </template>
 <style scoped>
+.delete-button { color: #dc2626; }
+.row-actions {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: #fff;
+  box-shadow: -6px 0 8px -6px #1c335b33;
+  white-space: nowrap;
+}
+th.row-actions {
+  z-index: 2;
+  background: #fafbfd;
+}
+
 .export-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .registration-actions {
   display: flex;

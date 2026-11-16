@@ -59,7 +59,7 @@ module.exports = ({ db, cloud, ApiError, withTransaction, adminDocument, createS
         await tx.collection(collection).doc(data.id).update({ data: { status: 'consumed' } });
         return admin;
       });
-      return adminId ? { status: 'confirmed', ...await createSession(adminId) } : { status: 'pending' };
+      return adminId ? { status: 'confirmed', ...await createSession(adminId, 'wechat') } : { status: 'pending' };
     }
   };
 };

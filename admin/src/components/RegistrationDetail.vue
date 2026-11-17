@@ -1,4 +1,5 @@
 <script setup>
+import PaymentProofRecognition from "./PaymentProofRecognition.vue";
 import PaymentProofThumbnail from "./PaymentProofThumbnail.vue";
 import SensitiveValue from "./SensitiveValue.vue";
 import { computed, reactive, ref, onUnmounted, watch } from 'vue';
@@ -141,6 +142,7 @@ async function saveReview() {
         <p v-if="selected.paymentBreakdown">报名费：¥{{ selected.paymentBreakdown.registration || 0 }} · 考试费：¥{{ selected.paymentBreakdown.exam }} · 高复教材资料费：¥{{ selected.paymentBreakdown.materials }} · 高复学费：¥{{ selected.paymentBreakdown.tuition }}</p>
         <p>实际缴费金额：{{ selected.actualPaidAmount == null ? '未填写' : '¥' + selected.actualPaidAmount }}</p>
         <p>{{ selected.paymentRemark }}</p>
+        <PaymentProofRecognition v-for="entry in (canViewMaterials && (admin?.role === 'super' || admin?.permissions?.includes('registrations.edit')) ? selected.paymentProofs : [])" :key="selected.id + '-ocr-' + entry.index + '-' + selected.revision" :token="token" :registration="selected" :entry="entry" @saved="emit('saved')"/>
         <div v-for="entry in (canViewMaterials ? selected.paymentProofs : [])" :key="selected.id + '-' + entry.index" class="proof-actions">
           <PaymentProofThumbnail :token="token" :registration-id="selected.id" :proof-index="entry.index" @open="proof('view', entry.index)" />
           <span>凭证 {{ entry.index + 1 }} · {{ entry.fileName }}</span>

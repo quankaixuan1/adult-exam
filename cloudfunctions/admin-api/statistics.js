@@ -16,7 +16,10 @@ function summarize(records, f = {}) {
   const rows = [];
   for (const r of records) {
     if (['school', 'campus', 'teacherName', 'level'].some(k => f[k] && r[k] !== f[k])) continue;
-    const date = day(payments ? r.paymentFinanceReviewedAt : r.createdAt);
+    // Only attribute a cumulative balance to a proof when it accounts for the whole amount.
+    const proofs = r.paymentProofs || [];
+    const verified = proofs.length === 1 && proofs[0].paymentInfo?.confirmedAt && cents(proofs[0].paymentInfo.amount) === cents(r.actualPaidAmount) ? proofs[0].paymentInfo.paidAt : '';
+    const date = day(payments ? (f.dateBasis === 'actual' ? verified : r.paymentFinanceReviewedAt) : r.createdAt);
     if (payments && !date && (r.paymentStatus === 'paid' || cents(r.actualPaidAmount) > 0)) missingDates++;
     if ((f.start || f.end) && !date) continue;
     if ((f.start && date < f.start) || (f.end && date > f.end)) continue;

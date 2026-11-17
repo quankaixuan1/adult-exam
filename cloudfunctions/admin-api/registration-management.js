@@ -1,3 +1,4 @@
+const { paymentChanged } = require('./payment-change');
 const registrationSchema = require('./registration-schema.json');
 const programs = require('./programs');
 const { campuses, members, positions, memberById } = require('./organization');
@@ -133,13 +134,12 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
         uploadedFileIds.push(uploaded.fileID);
         fields.materials = { ...current?.materials, paymentProof: { fileId: uploaded.fileID, fileName: text(proof.fileName, 120, '文件名'), size: bytes.length, uploadedAt: updatedAt, uploadedBy: admin._id, status: 'pending' } };
       }
-      if (uploads.length) fields.paymentProofs = [...proofs, ...uploadedFileIds.map((fileId, index) => ({ fileId, fileName: text(uploads[index].fileName, 120, '文件名'), uploadedAt: updatedAt, uploadedBy: admin._id }))];
+      if (uploads.length) fields.paymentProofs = [...proofs, ...uploadedFileIds.map((fileId, index) => ({ fileId, fileName: text(uploads[index].fileName, 120, '文件名'), recognitionDraft: Object.fromEntries(['paidAt', 'amount', 'transactionNo', 'channel', 'warning'].map(key => [key, String(uploads[index].recognitionDraft?.[key] || '').slice(0, 200)])), uploadedAt: updatedAt, uploadedBy: admin._id }))];
       const next = { ...fields, updatedAt, revision: (current?.revision || 0) + 1 };
       if (creating) Object.assign(next, { source: 'admin', createdBy: admin._id, createdAt: updatedAt, status: 'pending', paymentStatus: 'pending', materials: fields.materials || {} });
       // 仅调整归属不撤销审核；资料变动后重新待审核。
       else if (Object.keys(fields).some(key => !['campus', 'teacherId', 'teacherName', 'classId', 'actualPaidAmount', 'paymentBreakdown', 'paymentProofs', 'materials', 'note', 'registrationSource', 'referrer'].includes(key) && (fields[key] ?? '') !== (current[key] ?? ''))) next.status = 'pending';
-      const amountChanged = current && Object.hasOwn(fields, 'actualPaidAmount') && fields.actualPaidAmount !== (current.actualPaidAmount ?? null);
-      if (uploads.length || amountChanged || (fields.paymentBreakdown && JSON.stringify(fields.paymentBreakdown) !== JSON.stringify(current?.paymentBreakdown))) {
+      if (uploads.length || paymentChanged(current, fields)) {
         Object.assign(next, { paymentStatus: 'finance_pending', paymentRemark: '', paymentFinanceId: '', paymentFinanceReviewedAt: '' });
       }
       if (creating) await transaction.collection('registrations').doc(id).set({ data: next });
@@ -166,7 +166,7 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
       const page = await db.collection('registrations').where(scope(admin)).field({
         name: true, school: true, campus: true, teacherId: true, teacherName: true, level: true,
         createdAt: true, status: true, paymentStatus: true, paymentFinanceReviewedAt: true,
-        actualPaidAmount: true, paymentBreakdown: true
+        actualPaidAmount: true, paymentBreakdown: true, paymentProofs: true
       }).orderBy('_id', 'asc').skip(offset).limit(100).get();
       records.push(...page.data);
       if (page.data.length < 100) break;

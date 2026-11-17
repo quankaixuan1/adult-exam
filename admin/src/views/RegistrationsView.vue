@@ -233,6 +233,11 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
   </div>
 </template>
 <style scoped>
+.registrations-view table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
 .delete-button {
   color: #dc2626;
 }
@@ -242,7 +247,8 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
   right: 0;
   z-index: 1;
   background: #fff;
-  box-shadow: -6px 0 8px -6px #1c335b33;
+  border-left: 1px solid #e3e8f1;
+  box-shadow: -6px 0 8px -6px rgba(28, 51, 91, 0.2);
   white-space: nowrap;
 }
 

@@ -7,6 +7,7 @@ const emit = defineEmits(['expired']);
 const today = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
 const mode = ref('registrations'), period = ref('month'), anchor = ref(today());
 const filters = reactive({ school: '', campus: '', teacherName: '', level: '', category: '', status: '', start: '', end: '' });
+const dateBasis = ref('actual');
 const result = ref(null), error = ref(''), busy = ref(false);
 const labels = { school: '学校', campus: '校区', teacherName: '老师', level: '层次' };
 const categories = { exam: '考试费', materials: '高复教材资料费', tuition: '高复学费' };
@@ -25,7 +26,7 @@ async function refresh(page = 1) {
   error.value = ''; busy.value = true;
   try {
     if (period.value === 'custom' && (!filters.start || !filters.end)) throw Error('请选择开始和结束日期');
-    result.value = await call('registrationStatistics', { token: props.token, ...filters, ...range.value, mode: mode.value, granularity: period.value, page });
+    result.value = await call('registrationStatistics', { token: props.token, ...filters, ...range.value, mode: mode.value, dateBasis: dateBasis.value, granularity: period.value, page });
   } catch (e) { result.value = null; error.value = e.message; if (e.code === 'LOGIN_REQUIRED') emit('expired'); }
   finally { busy.value = false; }
 }
@@ -62,7 +63,7 @@ defineExpose({ refresh });
               <option value="">全部{{ label }}</option>
               <option v-for="item in result?.options[key] || []" :key="item">{{ item }}</option>
             </select></label>
-          <label v-if="mode === 'payments'">缴费类别<select v-model="filters.category">
+          <label v-if="mode === 'payments'">日期口径<select v-model="dateBasis"><option value="actual">实际付款时间</option><option value="finance">财务确认时间</option></select></label><label v-if="mode === 'payments'">缴费类别<select v-model="filters.category">
               <option value="">全部类别</option>
               <option v-for="(label, key) in categories" :value="key" :key="key">{{ label }}</option>
             </select></label>
@@ -74,7 +75,7 @@ defineExpose({ refresh });
         <div class="actions"><button class="primary">查询</button><button type="button" class="outline" @click="reset">重置</button><template v-if="!['custom', 'all'].includes(period)"><button type="button" class="outline" @click="shift(-1)">上一期</button><button type="button" class="outline" @click="anchor = today(); refresh()">回到本期</button><button type="button" class="outline" @click="shift(1)">下一期</button></template></div>
       </fieldset>
     </form>
-    <p class="muted">仅统计当前账号授权范围。{{ mode === 'payments' ? '按财务确认时间统计已确认实收；现有数据为学生累计缴费记录，不代表逐笔付款流水。无确认日期的记录仅在全部时间中显示。' : '按报名创建时间统计。' }}</p>
+    <p class="muted">仅统计当前账号授权范围。{{ mode === 'payments' ? '按所选日期口径统计已确认实收。实际付款时间仅采用已人工核对、单张凭证金额与累计金额一致的记录；多凭证记录暂不分摊至各付款日期。无可用日期的记录仅在全部时间显示。' : '按报名创建时间统计。' }}</p>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <template v-if="result">
       <div class="cards">
@@ -84,7 +85,7 @@ defineExpose({ refresh });
         </template>
         <article v-for="(count, status) in result.statuses" :key="status"><span>{{ (mode === 'payments' ? paymentStatusLabels : statusLabels)[status] || status }}</span><strong>{{ count }}</strong></article>
       </div>
-      <p v-if="mode === 'payments' && result.missingDates" class="muted">{{ result.missingDates }} 条缴费记录缺少财务确认日期，选择全部时间可核对。</p>
+      <p v-if="mode === 'payments' && result.missingDates" class="muted">{{ result.missingDates }} 条缴费记录缺少当前口径可用日期，选择全部时间可核对。</p>
       <p v-if="!result.total" class="panel">当前筛选条件下暂无数据。</p>
       <div class="grids">
         <section class="panel">
@@ -114,7 +115,7 @@ defineExpose({ refresh });
                 <th>学生</th>
                 <th>学校</th>
                 <th>老师</th>
-                <th>{{ mode === 'payments' ? '财务确认日期' : '报名日期' }}</th>
+                <th>{{ mode === 'payments' ? (dateBasis === 'actual' ? '实际付款日期' : '财务确认日期') : '报名日期' }}</th>
                 <th>状态</th><template v-if="mode === 'payments'">
                   <th>费用拆分</th>
                   <th>所选范围金额</th>

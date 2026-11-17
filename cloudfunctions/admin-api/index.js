@@ -421,7 +421,7 @@ function publicRegistration(item) {
     studyCampus: item.studyCampus || "",
     actualPaidAmount: item.actualPaidAmount ?? null,
     paymentBreakdown: item.paymentBreakdown || null,
-    paymentProofs: (item.paymentProofs || (item.materials?.paymentProof ? [item.materials.paymentProof] : [])).map((p, index) => ({ index, fileName: p.fileName, uploadedAt: p.uploadedAt })),
+    paymentProofs: (item.paymentProofs || (item.materials?.paymentProof ? [item.materials.paymentProof] : [])).map((p, index) => ({ index, fileName: p.fileName, uploadedAt: p.uploadedAt, paymentInfo: p.paymentInfo || null, recognitionDraft: p.recognitionDraft || null })),
     programId: item.programId || "",
     studentNo: item.studentNo || "",
     paymentStatus: item.paymentStatus || "pending",
@@ -600,8 +600,8 @@ async function dashboard(admin, data) {
     collection.where(command.and([baseScope, finance ? { paymentStatus: "paid" } : { status: "approved" }])).count(),
     collection.where(command.and([baseScope, finance ? { paymentStatus: "payment_rejected" } : { status: "rejected" }])).count(),
     query
-      .orderBy("createdAt", "asc")
-      .orderBy("_id", "asc")
+      .orderBy("createdAt", "desc")
+      .orderBy("_id", "desc")
       .skip((page - 1) * pageSize)
       .limit(pageSize)
       .get(),
@@ -862,6 +862,7 @@ async function wechatIdentity(data, bind = false) {
 const webLogin = require('./web-login')({ db, cloud, ApiError, withTransaction, adminDocument, createSession });
 const createReferral = require('./referrals')({ db, ApiError });
 const programs = require('./programs');
+const paymentProofReview = require('./payment-proof-review')({ db, cloud, ApiError, requirePermission, scopedRegistration, withTransaction, canAccess });
 async function handle(action, data) {
   if (['createWebLogin', 'confirmWebLogin', 'pollWebLogin'].includes(action)) return webLogin(action, data);
   if (action === "wechatLogin") return wechatIdentity(data);
@@ -873,6 +874,8 @@ async function handle(action, data) {
   if (action === "catalog")
     return { demo: false, programs };
   const admin = await authenticate(data.token);
+  if (action === 'recognizePaymentProof') return paymentProofReview(admin, data);
+  if (action === 'confirmPaymentProof') return paymentProofReview(admin, data, true);
   if (action === 'myAccount') return publicAdmin(admin);
   if (action === 'changePassword') {
     if (!validPassword(data.newPassword)) throw new ApiError('新密码须为10至128位', 'INVALID_INPUT');

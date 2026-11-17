@@ -6,6 +6,7 @@ import registrationSchema from '../services/registration-schema.json';
 const selectOptions = { education: registrationSchema.educationOptions, politicalStatus: registrationSchema.politicalOptions };
 const props = defineProps({ registration: Object, token: String });
 const emit = defineEmits(['close', 'saved']);
+const recognitionMessage = ref('');
 const busy = ref(false), loading = ref(true), error = ref('');
 const options = reactive({ campuses: [], members: [], programs: [], canAssign: false, memberId: '' });
 const form = reactive({ unionMember: null, veteran: null, name: '', phone: '', gender: '', ethnicity: '', education: '', workUnit: '', note: '', registrationSource: '', referrer: '', currentAddress: '', politicalStatus: '', emergencyName: '', emergencyPhone: '', idNumber: '', studyCampus: '', actualPaidAmount: '', level: '', school: '', major: '', campus: '', teacherId: '', ...props.registration });
@@ -100,9 +101,14 @@ async function chooseProof(event) {
         reader.onerror = () => reject(new Error('读取图片失败'));
         reader.readAsDataURL(file);
       });
-      uploads.push({ base64, fileName: file.name });
+      const upload = { base64, fileName: file.name };
+      recognitionMessage.value = `正在识别 ${file.name}…`;
+      try { upload.recognitionDraft = await call('recognizePaymentProof', { token: props.token, base64 }, { loading: false }); }
+      catch (e) { upload.recognitionDraft = { warning: e.message }; }
+      uploads.push(upload);
     }
     form.paymentProofUploads = uploads;
+    recognitionMessage.value = '识别完成；保存后请在报名详情中对照凭证核对付款时间和金额。';
     error.value = '';
   } catch (e) { error.value = e.message; }
   finally { busy.value = false; }
@@ -207,7 +213,7 @@ async function save() {
               <div class="fee-summary">
                 <div class="fee-summary-label">考前实际缴费合计：{{ hasBreakdown ? '¥' + paidTotal : form.actualPaidAmount == null || form.actualPaidAmount === '' ? '未填写' : '¥' + form.actualPaidAmount + '（历史总额，待补明细）' }}</div><button type="button" class="outline" :disabled="!form.level" @click="standardFees">按层次填入标准费用</button>
               </div>
-              <label class="payment-proof-field"><span>上传缴费凭证</span><input type="file" multiple accept="image/jpeg,image/png" @change="chooseProof" :aria-invalid="!!fieldErrors.paymentProofUpload" /><small>可追加多张凭证；每次最多5张、合计2MB。历史凭证保留，保存后提交财务审核。</small><small v-if="fieldErrors.paymentProofUpload" class="field-error">{{ fieldErrors.paymentProofUpload }}</small></label>
+              <p v-if="recognitionMessage" role="status">{{ recognitionMessage }}</p><div v-for="(upload,index) in form.paymentProofUploads || []" :key="index"><strong>{{ upload.fileName }}</strong><p>{{ upload.recognitionDraft?.paidAt || '时间未识别' }} · {{ upload.recognitionDraft?.amount ? '¥' + upload.recognitionDraft.amount : '金额未识别' }}</p><small>{{ upload.recognitionDraft?.warning }}</small></div><label class="payment-proof-field"><span>上传缴费凭证</span><input type="file" multiple accept="image/jpeg,image/png" @change="chooseProof" :aria-invalid="!!fieldErrors.paymentProofUpload" /><small>可追加多张凭证；每次最多5张、合计2MB。历史凭证保留，保存后提交财务审核。</small><small v-if="fieldErrors.paymentProofUpload" class="field-error">{{ fieldErrors.paymentProofUpload }}</small></label>
             </div>
           </section>
           <label class="note-field">备注<textarea v-model.trim="form.note" maxlength="1000" rows="3" placeholder="选填，最多1000字" :aria-invalid="!!fieldErrors.note"></textarea><small v-if="fieldErrors.note" class="field-error">{{ fieldErrors.note }}</small></label>

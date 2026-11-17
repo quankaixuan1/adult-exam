@@ -393,6 +393,7 @@ function publicRegistration(item) {
     phone: item.phone,
     gender: item.gender || "",
     ethnicity: item.ethnicity || "",
+    hasIdentity: !!item.idNumberEncrypted,
     idNumberMasked: item.idNumberLast4
       ? `**************${item.idNumberLast4}`
       : "",
@@ -904,7 +905,7 @@ async function handle(action, data) {
   if (action === "saveRegistration")
     return registrationManagement.save(admin, data);
   if (action === "registrationStatistics")
-    return registrationManagement.statistics(admin);
+    return registrationManagement.statistics(admin, data);
   if (action === "notifications") return adminInbox(admin).list();
   if (action === "readNotification")
     return adminInbox(admin).read(data.notificationId);
@@ -925,6 +926,13 @@ async function handle(action, data) {
       } });
     });
     return { success: true };
+  }
+  if (action === "registrationIdentity") {
+    requirePermission(admin, "registrations.view");
+    const record = await scopedRegistration(admin, data.registrationId);
+    const idNumber = exportIdentity(record);
+    await audit(admin, "registration_identity_viewed", { registrationId: data.registrationId });
+    return { idNumber };
   }
   if (action === "registrationDetail") {
     if (!/^[a-f0-9]{64}$/.test(data.registrationId || ""))

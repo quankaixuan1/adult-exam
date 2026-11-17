@@ -1,0 +1,60 @@
+{
+  "educationOptions": [
+    "高中以下",
+    "高中（中专、职高、技校等）",
+    "专科",
+    "本科",
+    "硕士及以上"
+  ],
+  "politicalOptions": [
+    "群众",
+    "共青团员",
+    "中共党员",
+    "其他"
+  ],
+  "genderOptions": [
+    "男",
+    "女"
+  ],
+  "booleanFields": [
+    "unionMember",
+    "veteran"
+  ],
+  "groups": {
+    "basic": [
+      "name",
+      "gender",
+      "ethnicity",
+      "idNumber",
+      "phone",
+      "education",
+      "workUnit",
+      "currentAddress",
+      "politicalStatus",
+      "unionMember",
+      "veteran",
+      "emergencyName",
+      "emergencyPhone",
+      "note"
+    ],
+    "program": [
+      "level",
+      "school",
+      "major",
+      "studyCampus",
+      "duration",
+      "studyMode",
+      "examCategory"
+    ],
+    "payment": [
+      "campus",
+      "teacherId",
+      "registrationSource",
+      "referrer",
+      "paymentBreakdown",
+      "actualPaidAmount",
+      "paymentProofs",
+      "paymentStatus"
+    ]
+  }
+}

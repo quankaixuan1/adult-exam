@@ -1,4 +1,6 @@
 <script setup>
+import PaymentProofThumbnail from "./PaymentProofThumbnail.vue";
+import SensitiveValue from "./SensitiveValue.vue";
 import { computed, reactive, ref, onUnmounted, watch } from 'vue';
 import { call } from '../services/api';
 import { statusLabels, paymentStatusLabels, showValue, showBoolean } from '../services/registration';
@@ -83,61 +85,64 @@ async function saveReview() {
 
       <p class="eyebrow">报名详情</p>
       <section class="">
-        <h2>{{ selected.name }} - {{ selected.studentNo || '未提供' }}</h2>
+        <h2>{{ selected.name }} · {{ selected.studentNo || '未提供' }}</h2>
       </section>
 
       <section class="info-section info-basic">
         <h3>基本信息</h3>
-        <div class="detail-grid"><span>联系电话<b>{{ showValue(selected.phone) }}</b></span>
-<span>身份证号<b>{{ showValue(selected.idNumberMasked) }}</b></span>
-<span>性别与民族<b>{{ showValue(selected.gender) }} · {{ showValue(selected.ethnicity) }}</b></span>
-<span>学历<b>{{ showValue(selected.education) }}</b></span>
-<span>工作单位<b>{{ selected.workUnit || '未填写' }}</b></span>
-<span>政治面貌<b>{{ showValue(selected.politicalStatus) }}</b></span>
-<span>现居住地址<b>{{ showValue(selected.currentAddress) }}</b></span>
-<span>第二联系人<b>{{ selected.emergencyName ? selected.emergencyName + ' · ' + selected.emergencyPhone : '未填写' }}</b></span>
-<span>工会会员 / 退役军人<b>{{ showBoolean(selected.unionMember) }} / {{ showBoolean(selected.veteran) }}</b></span>
+        <div class="detail-grid"><span>联系电话<b>
+              <SensitiveValue :value="selected.phone" :registration-id="selected.id" />
+            </b></span>
+          <span>身份证号<b>
+              <SensitiveValue :value="selected.idNumberMasked" kind="idNumber" :registration-id="selected.id" :token="token" />
+            </b></span>
+          <span>性别与民族<b>{{ showValue(selected.gender) }} · {{ showValue(selected.ethnicity) }}</b></span>
+          <span>学历<b>{{ showValue(selected.education) }}</b></span>
+          <span>工作单位<b>{{ selected.workUnit || '未填写' }}</b></span>
+          <span>政治面貌<b>{{ showValue(selected.politicalStatus) }}</b></span>
+          <span>现居住地址<b>{{ showValue(selected.currentAddress) }}</b></span>
+          <span>第二联系人<b><template v-if="selected.emergencyName">{{ selected.emergencyName }} ·
+                <SensitiveValue :value="selected.emergencyPhone" :registration-id="selected.id" />
+              </template><template v-else>未填写</template></b></span>
+          <span>工会会员 / 退役军人<b>{{ showBoolean(selected.unionMember) }} / {{ showBoolean(selected.veteran) }}</b></span>
 
 
 
 
-<span>学生编号<b>{{ selected.studentNo || '未提供' }}</b></span>
-<span>来源<b>{{ selected.source === 'excel-original-990' ? '原表导入，第' + selected.sourceRow + '行' : selected.source === 'admin' ? '后台录入' : '小程序' }}</b></span>
+          <span>学生编号<b>{{ selected.studentNo || '未提供' }}</b></span>
+          <span>来源<b>{{ selected.source === 'excel-original-990' ? '原表导入，第' + selected.sourceRow + '行' : selected.source === 'admin' ? '后台录入' : '小程序' }}</b></span>
         </div>
       </section>
       <section class="info-section info-program">
         <h3>志愿信息</h3>
         <div class="detail-grid"><span>学制 / 学习形式<b>{{ showValue(selected.duration) }} / {{ showValue(selected.studyMode) }}</b></span>
-<span>报考层次<b>{{ showValue(selected.level) }}</b></span>
-<span>学校<b>{{ showValue(selected.school) }}</b></span>
-<span>专业<b>{{ showValue(selected.major) }}</b></span>
-<span>就读校区<b>{{ selected.studyCampus || '待定' }}</b></span>
-<span>考试类别<b>{{ selected.examCategory || '—' }}</b></span>
-<span>报名状态<b>{{ statusLabels[selected.status] }}</b></span>
+          <span>报考层次<b>{{ showValue(selected.level) }}</b></span>
+          <span>学校<b>{{ showValue(selected.school) }}</b></span>
+          <span>专业<b>{{ showValue(selected.major) }}</b></span>
+          <span>就读校区<b>{{ selected.studyCampus || '待定' }}</b></span>
+          <span>考试类别<b>{{ selected.examCategory || '—' }}</b></span>
+          <span>报名状态<b>{{ statusLabels[selected.status] }}</b></span>
         </div>
       </section>
-      <MaterialList v-if="canViewMaterials" :registration="selected" :token="token" />
-      <section v-else class="permission-notice">
-        <h3>报名材料</h3>
-        <p>当前账号没有证件材料查看权限，请联系主管理员在“账号与权限”中授权。</p>
-      </section>
-      <p class="record-note">备注：{{ selected.note || '未填写' }}</p>
+
 
 
 
       <section class="info-section info-payment">
         <h3>缴费信息</h3>
         <div class="detail-grid"><span>报名校区<b>{{ selected.campus || '待分配' }}</b></span>
-<span>所属老师<b>{{ selected.teacherName || '未提供' }}</b></span>
-<span>报名来源<b>{{ selected.registrationSource || '未填写' }}</b></span>
-<span>介绍人<b>{{ selected.referrer || '未填写' }}</b></span></div>
+          <span>所属老师<b>{{ selected.teacherName || '未提供' }}</b></span>
+          <span>报名来源<b>{{ selected.registrationSource || '未填写' }}</b></span>
+          <span>介绍人<b>{{ selected.referrer || '未填写' }}</b></span>
+        </div>
         <p>缴费状态：
           <PaymentStatus :status="selected.paymentStatus" />
         </p>
-        <p v-if="selected.paymentBreakdown">考试费：¥{{ selected.paymentBreakdown.exam }} · 高复教材资料费：¥{{ selected.paymentBreakdown.materials }} · 高复学费：¥{{ selected.paymentBreakdown.tuition }}</p>
+        <p v-if="selected.paymentBreakdown">报名费：¥{{ selected.paymentBreakdown.registration || 0 }} · 考试费：¥{{ selected.paymentBreakdown.exam }} · 高复教材资料费：¥{{ selected.paymentBreakdown.materials }} · 高复学费：¥{{ selected.paymentBreakdown.tuition }}</p>
         <p>实际缴费金额：{{ selected.actualPaidAmount == null ? '未填写' : '¥' + selected.actualPaidAmount }}</p>
         <p>{{ selected.paymentRemark }}</p>
-        <div v-for="entry in (canViewMaterials ? selected.paymentProofs : [])" :key="entry.index" class="proof-actions">
+        <div v-for="entry in (canViewMaterials ? selected.paymentProofs : [])" :key="selected.id + '-' + entry.index" class="proof-actions">
+          <PaymentProofThumbnail :token="token" :registration-id="selected.id" :proof-index="entry.index" @open="proof('view', entry.index)" />
           <span>凭证 {{ entry.index + 1 }} · {{ entry.fileName }}</span>
           <button v-if="openingProof" class="outline proof-loading" disabled>加载中…</button>
           <template v-else>
@@ -145,6 +150,7 @@ async function saveReview() {
             <button class="outline" @click="proof('download', entry.index)">下载缴费凭证</button>
           </template>
         </div>
+        
         <template v-if="canReviewPayment">
           <label>审核结果<select v-model="paymentDecision" :disabled="busy">
               <option value="approve">审核通过</option>
@@ -155,6 +161,7 @@ async function saveReview() {
         </template>
         <p v-if="error" class="error">{{ error }}</p>
       </section>
+      <p class="record-note">备注：{{ selected.note || '未填写' }}</p>
 
       <section v-if="canReview" class="review-panel">
         <h3>报名审核</h3><label>审核结果<select v-model="review.status">
@@ -167,18 +174,49 @@ async function saveReview() {
             '保存中…' : '保存审核结果' }}</button>
       </section>
       <p v-else-if="!isFinance" class="permission-notice">当前账号没有报名审核权限，请联系主管理员授权。</p>
+      <MaterialList v-if="canViewMaterials" :registration="selected" :token="token" />
+      <section v-else class="permission-notice">
+        <h3>报名材料</h3>
+        <p>当前账号没有证件材料查看权限，请联系主管理员在“账号与权限”中授权。</p>
+      </section>
     </section>
   </div>
   <MaterialPreview v-if="proofPreview" :preview="proofPreview" @close="closeProof" />
 </template>
 
 <style scoped>
-.info-section { margin: 18px 0; padding: 18px; border: 1px solid; border-radius: 12px; }
-.info-section h3 { margin: 0 0 16px; color: #26344e; font-size: 17px; }
-.info-basic { background: #eff6ff; border-color: #d4e5fb; }
-.info-program { background: #f0f9f3; border-color: #d1ead9; }
-.info-payment { background: #fff8eb; border-color: #f1dfbb; }
-.info-section .detail-grid { padding: 0; background: transparent; }
+.info-section {
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid;
+  border-radius: 12px;
+}
+
+.info-section h3 {
+  margin: 0 0 16px;
+  color: #26344e;
+  font-size: 17px;
+}
+
+.info-basic {
+  background: #eff6ff;
+  border-color: #d4e5fb;
+}
+
+.info-program {
+  background: #f0f9f3;
+  border-color: #d1ead9;
+}
+
+.info-payment {
+  background: #fff8eb;
+  border-color: #f1dfbb;
+}
+
+.info-section .detail-grid {
+  padding: 0;
+  background: transparent;
+}
 
 .record-note {
   white-space: pre-wrap;

@@ -1,4 +1,5 @@
 <script setup>
+import SensitiveValue from "../components/SensitiveValue.vue";
 import { computed, onMounted, reactive, ref } from 'vue';
 import { Download } from 'lucide-vue-next';
 import { registrationXlsx } from '../services/registration-export';
@@ -14,8 +15,7 @@ const data = reactive({ admin: null, stats: { total: 0, pending: 0, approved: 0,
 const isFinance = computed(() => (data.admin || props.admin)?.role !== 'super' && ['finance', 'financeStaff'].includes((data.admin || props.admin)?.position));
 const paymentFilterLabels = Object.fromEntries(Object.entries(paymentStatusLabels).filter(([key]) => key !== 'teacher_pending'));
 const search = ref(''), keyword = ref(''), selected = ref(null);
-const editing = ref(false), editRecord = ref(null), statistics = ref(null);
-const statLabels = { campus: '按校区', teacherId: '按所属老师', level: '按层次', school: '按院校' };
+const editing = ref(false), editRecord = ref(null);
 const canCreate = computed(() => data.admin?.role === 'super' || data.admin?.permissions?.includes('registrations.create'));
 const canEdit = computed(() => data.admin?.role === 'super' || data.admin?.permissions?.includes('registrations.edit'));
 const canDelete = computed(() => data.admin?.canDeleteRegistrations === true);
@@ -26,17 +26,17 @@ async function deleteRegistration(item) {
   error.value = '';
   try {
     await call('deleteRegistration', { token: props.token, registrationId: item.id });
-    await Promise.all([loadDashboard(rows.value.length === 1 ? Math.max(1, data.page - 1) : data.page), loadFilterOptions(), statistics.value ? showStatistics() : Promise.resolve()]);
+    await Promise.all([loadDashboard(rows.value.length === 1 ? Math.max(1, data.page - 1) : data.page), loadFilterOptions()]);
   } catch (e) { showError(e); }
   finally { deleting.value = false; }
 }
-const filters = reactive({ school: '', major: '', level: '', classId: '', studyCampus: '', teacherName: '', status: '', paymentStatus: '' });
-const filterOptions = reactive({ school: [], major: [], level: [], classId: [], studyCampus: [], teacherName: [] });
+const filters = reactive({ school: '', major: '', level: '', classId: '', campus: '', teacherName: '', status: '', paymentStatus: '' });
+const filterOptions = reactive({ school: [], major: [], level: [], classId: [], campus: [], teacherName: [] });
 const filterFields = [
   { key: 'school', label: '学校' },
   { key: 'major', label: '专业' },
   { key: 'level', label: '层次' },
-  { key: 'studyCampus', label: '就读校区' },
+  { key: 'campus', label: '报名校区' },
   { key: 'teacherName', label: '所属老师' }
 ];
 
@@ -80,7 +80,7 @@ async function loadDashboard(page = 1, options = {}) {
       major: filters.major,
       level: filters.level,
       classId: filters.classId,
-      studyCampus: filters.studyCampus,
+      campus: filters.campus,
       teacherName: filters.teacherName,
       page
     }, options);
@@ -123,13 +123,9 @@ async function editRegistration(item = null) {
   selected.value = null;
   editing.value = true;
 }
-async function showStatistics() {
-  try { statistics.value = (await call('registrationStatistics', { token: props.token })).groups; }
-  catch (e) { showError(e); }
-}
 async function savedRegistration() {
   editing.value = false;
-  await Promise.all([loadDashboard(data.page), loadFilterOptions(), statistics.value ? showStatistics() : Promise.resolve()]);
+  await Promise.all([loadDashboard(data.page), loadFilterOptions()]);
 }
 async function openRegistration(registrationId) {
   error.value = '';
@@ -149,19 +145,7 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
 </script>
 <template>
   <div class="registrations-view">
-    <div class="registration-actions"><button v-if="canCreate" class="primary" @click="editRegistration()">新增报名</button><button class="outline" @click="showStatistics">统计分析</button><span class="muted">统计和查询仅包含当前账号有权查看的记录</span></div>
-    <section v-if="statistics" class="panel analysis-panel">
-      <div class="analysis-heading">
-        <h2>授权范围统计</h2><button class="link-button" @click="statistics = null">收起</button>
-      </div>
-      <div class="analysis-grid">
-        <section v-for="(items, key) in statistics" :key="key">
-          <h3>{{ statLabels[key] }}</h3>
-          <p v-if="!items.length" class="muted">暂无数据</p>
-          <div v-for="item in items" :key="item.key" class="analysis-row"><span>{{ item.label }}</span><b>{{ item.count }}</b></div>
-        </section>
-      </div>
-    </section>
+    <div class="registration-actions"><button v-if="canCreate" class="primary" @click="editRegistration()">新增报名</button><span class="muted">统计和查询仅包含当前账号有权查看的记录</span></div>
     <section class="stats">
       <article><span>全部报名</span><strong>{{ data.stats.total }}</strong></article>
       <article><span>{{ isFinance ? '待财务审核' : '报名待审核' }}</span><strong>{{ data.stats.pending }}</strong></article>
@@ -174,17 +158,21 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
           <input v-model="search" maxlength="100" placeholder="搜索全部授权记录的姓名或手机号" />
           <button class="primary" type="submit">搜索</button>
           <button class="outline" type="button" @click="resetSearch">重置</button>
-          <button class="outline export-button" type="button" :disabled="exporting" @click="exportRegistrations"><Download :size="16" :stroke-width="2" aria-hidden="true" />{{ exporting ? `导出中（${exportCount}）` : '导出' }}</button>
+          <button class="outline export-button" type="button" :disabled="exporting" @click="exportRegistrations">
+            <Download :size="16" :stroke-width="2" aria-hidden="true" />{{ exporting ? `导出中（${exportCount}）` : '导出' }}
+          </button>
         </div>
 
       </form>
       <div class="filter-bar">
         <label><span>报名状态</span><select v-model="filters.status" @change="loadDashboard(1)">
-          <option value="">全部报名状态</option><option v-for="(label, key) in statusLabels" :key="key" :value="key">{{ label }}</option>
-        </select></label>
+            <option value="">全部报名状态</option>
+            <option v-for="(label, key) in statusLabels" :key="key" :value="key">{{ label }}</option>
+          </select></label>
         <label><span>缴费状态</span><select v-model="filters.paymentStatus" @change="loadDashboard(1)">
-          <option value="">全部缴费状态</option><option v-for="(label, key) in paymentFilterLabels" :key="key" :value="key">{{ label }}</option>
-        </select></label>
+            <option value="">全部缴费状态</option>
+            <option v-for="(label, key) in paymentFilterLabels" :key="key" :value="key">{{ label }}</option>
+          </select></label>
         <label v-for="field in filterFields" :key="field.key">
           <span>{{ field.label }}</span>
           <select v-model="filters[field.key]" @change="loadDashboard(1)">
@@ -217,10 +205,13 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
                 <PaymentStatus :status="item.paymentStatus" />
               </td>
 
-              <td><b>{{ item.name }}</b><small>{{ item.phone }}</small></td>
+              <td><b>{{ item.name }}</b>
+                <!-- <small><SensitiveValue :value="item.phone" :registration-id="item.id" /></small> -->
+                 <small>{{ item.studentNo }}</small>
+              </td>
               <td><b>{{ item.school }}</b><small>{{ item.major }}</small></td>
               <td>{{ item.level }}</td>
-              <td>{{ item.studyCampus || '待定' }}<small>{{ item.teacherName || '待分配' }}</small></td>
+              <td>{{ item.campus || '待定' }}<small>{{ item.teacherName || '待分配' }}</small></td>
               <!-- <td>{{ materialCount(item) }} / 4 项</td> -->
               <td>{{ new Date(item.createdAt).toLocaleString('zh-CN') }}</td>
               <td><span class="status" :class="item.status">{{ statusLabels[item.status] }}</span></td>
@@ -242,7 +233,10 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
   </div>
 </template>
 <style scoped>
-.delete-button { color: #dc2626; }
+.delete-button {
+  color: #dc2626;
+}
+
 .row-actions {
   position: sticky;
   right: 0;
@@ -251,12 +245,19 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
   box-shadow: -6px 0 8px -6px #1c335b33;
   white-space: nowrap;
 }
+
 th.row-actions {
   z-index: 2;
   background: #fafbfd;
 }
 
-.export-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.export-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 .registration-actions {
   display: flex;
   align-items: center;

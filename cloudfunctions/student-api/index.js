@@ -1,3 +1,4 @@
+const registrationSchema = require('./registration-schema.json');
 const cloud = require('wx-server-sdk');
 const { validateIdNumber } = require('./id-number');
 const { createHash, randomBytes, createCipheriv } = require('crypto');
@@ -127,6 +128,9 @@ function validateRegistration(data, currentName, currentRecord, programs) {
   if (!/^1[3-9]\d{9}$/.test(phone)) throw new ApiError('请填写有效的本人手机号', 'INVALID_INPUT');
   if ((emergencyName || emergencyPhone) && (!emergencyName || !/^1[3-9]\d{9}$/.test(emergencyPhone))) throw new ApiError('第二联系人如填写，请同时填写姓名和有效手机号', 'INVALID_INPUT');
   if (!education || !currentAddress || !politicalStatus) throw new ApiError('请完整填写学历、现居住地址和政治面貌', 'INVALID_INPUT');
+  for (const key of registrationSchema.booleanFields) {
+    if (data[key] != null && typeof data[key] !== 'boolean') throw new ApiError('选项格式无效', 'INVALID_INPUT');
+  }
   let program = programs.find(item => item.id === data.programId);
   if (data.programId === 'other') {
     const custom = data.customProgram || {};

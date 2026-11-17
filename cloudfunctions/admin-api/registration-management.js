@@ -1,3 +1,4 @@
+const registrationSchema = require('./registration-schema.json');
 const programs = require('./programs');
 const { campuses, members, positions, memberById } = require('./organization');
 const { membership, isManagement, canAccess } = require('./access');
@@ -29,23 +30,23 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
   function cleanFields(data, current) {
     const next = {};
     for (const [key, max, label, required] of [
-      ['name', 40, '姓名', true], ['phone', 11, '手机号', true], ['gender', 2, '性别'],
-      ['ethnicity', 20, '民族'], ['education', 20, '学历'], ['workUnit', 100, '工作单位'],
-      ['registrationSource', 20, '报名来源'], ['referrer', 40, '介绍人'], ['note', 1000, '备注'], ['currentAddress', 160, '现居住地址'], ['politicalStatus', 20, '政治面貌'],
+      ['name', 40, '姓名', true], ['phone', 11, '手机号', true], ['gender', 2, '性别', true],
+      ['ethnicity', 20, '民族', true], ['education', 20, '学历', true], ['workUnit', 100, '工作单位'],
+      ['registrationSource', 20, '报名来源', true], ['referrer', 40, '介绍人'], ['note', 1000, '备注'], ['currentAddress', 160, '现居住地址', true], ['politicalStatus', 20, '政治面貌', true],
       ['emergencyName', 40, '第二联系人'], ['emergencyPhone', 11, '第二联系人电话']
     ]) next[key] = text(data[key] === undefined ? current?.[key] : data[key], max, label, required);
     if (!/^1[3-9]\d{9}$/.test(next.phone)) fail('请填写有效的11位手机号');
+    if (!registrationSchema.educationOptions.includes(next.education)) fail('请选择当前学历');
+    if (!registrationSchema.politicalOptions.includes(next.politicalStatus)) fail('请选择政治面貌');
     if (next.gender && !['男', '女'].includes(next.gender)) fail('性别无效');
     if ((next.emergencyName || next.emergencyPhone) && (!next.emergencyName || !/^1[3-9]\d{9}$/.test(next.emergencyPhone))) fail('请完整填写第二联系人姓名和手机号');
-    for (const key of ['unionMember', 'veteran']) {
+    for (const key of registrationSchema.booleanFields) {
       if (data[key] != null && typeof data[key] !== 'boolean') fail('选项格式无效');
-      if (data[key] != null) next[key] = data[key];
+      next[key] = data[key] === undefined ? (current?.[key] ?? null) : data[key];
     }
     if (next.registrationSource && !['大一', '大二', '大三', '新生', '续报', '渠道', '动员'].includes(next.registrationSource)) fail('请选择有效的报名来源');
-    if (data.studyCampus !== undefined) {
-      next.studyCampus = text(data.studyCampus, 30, '就读校区');
-      if (next.studyCampus && !campuses.includes(next.studyCampus)) fail('请选择有效的就读校区');
-    }
+    next.studyCampus = text(data.studyCampus === undefined ? current?.studyCampus : data.studyCampus, 30, '就读校区', true);
+    if (!campuses.includes(next.studyCampus)) fail('请选择有效的就读校区');
     if (data.actualPaidAmount !== undefined) {
       if (data.actualPaidAmount === '' || data.actualPaidAmount === null) next.actualPaidAmount = null;
       else {
@@ -59,14 +60,15 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
       if (typeof parts !== 'object' || Array.isArray(parts)) fail('缴费明细格式无效');
       next.paymentBreakdown = {};
       let cents = 0;
-      for (const [key, label] of [['exam', '考试费'], ['materials', '高复教材资料费'], ['tuition', '高复学费']]) {
-        if (!/^\d{1,8}(\.\d{1,2})?$/.test(String(parts[key] ?? ''))) fail(`请填写有效的${label}，最多两位小数`);
-        next.paymentBreakdown[key] = Number(parts[key]);
-        cents += Math.round(Number(parts[key]) * 100);
+      for (const [key, label] of [['registration', '报名费'], ['exam', '考试费'], ['materials', '高复教材资料费'], ['tuition', '高复学费']]) {
+        if (!/^\d{1,8}(\.\d{1,2})?$/.test(String(parts[key] ?? (key === 'registration' ? 0 : '')))) fail(`请填写有效的${label}，最多两位小数`);
+        next.paymentBreakdown[key] = Number(parts[key] ?? 0);
+        cents += Math.round(Number(parts[key] ?? 0) * 100);
       }
       next.actualPaidAmount = cents / 100;
     }
     const idNumber = text(data.idNumber, 18, '身份证号').toUpperCase();
+    if (!idNumber && !current?.idNumberEncrypted) fail('请填写身份证号');
     if (idNumber) {
       const error = validateIdNumber(idNumber);
       if (error) fail(error);
@@ -135,7 +137,7 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
       const next = { ...fields, updatedAt, revision: (current?.revision || 0) + 1 };
       if (creating) Object.assign(next, { source: 'admin', createdBy: admin._id, createdAt: updatedAt, status: 'pending', paymentStatus: 'pending', materials: fields.materials || {} });
       // 仅调整归属不撤销审核；资料变动后重新待审核。
-      else if (Object.keys(fields).some(key => !['campus', 'teacherId', 'teacherName', 'classId', 'actualPaidAmount', 'paymentBreakdown', 'paymentProofs', 'materials', 'note', 'registrationSource', 'referrer'].includes(key) && fields[key] !== (current[key] ?? ''))) next.status = 'pending';
+      else if (Object.keys(fields).some(key => !['campus', 'teacherId', 'teacherName', 'classId', 'actualPaidAmount', 'paymentBreakdown', 'paymentProofs', 'materials', 'note', 'registrationSource', 'referrer'].includes(key) && (fields[key] ?? '') !== (current[key] ?? ''))) next.status = 'pending';
       const amountChanged = current && Object.hasOwn(fields, 'actualPaidAmount') && fields.actualPaidAmount !== (current.actualPaidAmount ?? null);
       if (uploads.length || amountChanged || (fields.paymentBreakdown && JSON.stringify(fields.paymentBreakdown) !== JSON.stringify(current?.paymentBreakdown))) {
         Object.assign(next, { paymentStatus: 'finance_pending', paymentRemark: '', paymentFinanceId: '', paymentFinanceReviewedAt: '' });
@@ -154,25 +156,23 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
     }
     return { registration: publicRegistration(saved) };
   }
-  async function statistics(admin) {
+  async function statistics(admin, data = {}) {
     requirePermission(admin, 'registrations.view');
-    const result = {};
-    for (const field of ['campus', 'teacherId', 'level', 'school']) {
-      const items = [];
-      let offset = 0;
-      while (true) {
-        const page = await db.collection('registrations').aggregate().match(scope(admin))
-          .group({ _id: `$${field}`, count: db.command.aggregate.sum(1) }).sort({ _id: 1 }).skip(offset).limit(200).end();
-        items.push(...page.list.map(item => {
-          const member = field === 'teacherId' ? memberById(item._id) : null;
-          return { key: item._id || '', label: field === 'teacherId' ? (member ? `${member.name}（${member.campus || '管理岗位'}）` : '未分配') : item._id || '未分配', count: item.count };
-        }));
-        if (page.list.length < 200) break;
-        offset += 200;
-      }
-      result[field] = items;
+    const { summarize, validateFilters } = require('./statistics');
+    try { validateFilters(data); } catch (error) { fail(error.message); }
+    const records = [];
+    let offset = 0;
+    while (true) {
+      const page = await db.collection('registrations').where(scope(admin)).field({
+        name: true, school: true, campus: true, teacherId: true, teacherName: true, level: true,
+        createdAt: true, status: true, paymentStatus: true, paymentFinanceReviewedAt: true,
+        actualPaidAmount: true, paymentBreakdown: true
+      }).orderBy('_id', 'asc').skip(offset).limit(100).get();
+      records.push(...page.data);
+      if (page.data.length < 100) break;
+      offset += 100;
     }
-    return { groups: result };
+    return summarize(records, data);
   }
   return { options, save, statistics };
 };

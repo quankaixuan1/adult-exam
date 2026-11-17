@@ -16,12 +16,12 @@ function toggleNotifications() {
 <div class="dashboard-shell">
     <aside>
       <div class="brand"><span class="brand-mark small">成</span><div><b>招生管理</b><small>成人高考报名系统</small></div></div>
-      <nav><button :class="{active: tab === 'registrations'}" @click="emit('update:tab', 'registrations')">报名管理</button><button :class="{active: tab === 'programs'}" @click="emit('update:tab', 'programs')">学校与专业</button><button v-if="admin?.role === 'super'" :class="{active: tab === 'accounts'}" @click="emit('update:tab', 'accounts')">组织与账号</button><button :class="{active: tab === 'my-account'}" @click="emit('update:tab', 'my-account')">我的账号</button></nav>
+      <nav><button :class="{active: tab === 'registrations'}" @click="emit('update:tab', 'registrations')">报名管理</button><button :class="{active: tab === 'statistics'}" @click="emit('update:tab', 'statistics')">统计分析</button><button :class="{active: tab === 'programs'}" @click="emit('update:tab', 'programs')">学校与专业</button><button v-if="admin?.role === 'super'" :class="{active: tab === 'accounts'}" @click="emit('update:tab', 'accounts')">组织与账号</button><button :class="{active: tab === 'my-account'}" @click="emit('update:tab', 'my-account')">我的账号</button></nav>
       <div class="admin-box"><span>{{ admin?.displayName }}</span><small>{{ admin?.username }}</small><button @click="emit('logout')">退出登录</button></div>
     </aside>
     <main class="content">
       <header>
-        <div><p class="eyebrow">报名中心</p><h1>{{ tab === 'my-account' ? '我的账号' : tab === 'accounts' ? '组织与账号' : tab === 'programs' ? '学校与专业' : '报名管理' }}</h1></div>
+        <div><p class="eyebrow">报名中心</p><h1>{{ tab === 'statistics' ? '统计分析' : tab === 'my-account' ? '我的账号' : tab === 'accounts' ? '组织与账号' : tab === 'programs' ? '学校与专业' : '报名管理' }}</h1></div>
         <div class="header-actions">
           <button v-if="canReadNotifications" class="outline notification-toggle" :aria-expanded="notificationsOpen" @click="toggleNotifications">
             消息 <span v-if="unreadTotal" class="unread-badge">{{ unreadTotal > 99 ? '99+' : unreadTotal }}</span>
@@ -151,5 +151,5 @@ header h1 {
   margin: 0;
   font-size: 32px
 }
-@media(max-width:900px){.dashboard-shell{grid-template-columns:1fr}.dashboard-shell>aside{position:static;height:auto}.brand{padding-bottom:14px}nav{display:none}.admin-box{margin:0}.content{padding:24px}}
+@media(max-width:900px){.dashboard-shell{grid-template-columns:1fr}.dashboard-shell>aside{position:static;height:auto}.brand{padding-bottom:14px}nav{display:flex;flex-wrap:wrap}.admin-box{margin:0}.content{padding:24px}}
 </style>

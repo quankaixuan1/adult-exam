@@ -14,12 +14,12 @@ test('payment filters use confirmation date, category and school',()=> {
  assert.equal(r.total,1); assert.equal(r.amount,10000); assert.equal(r.confirmedCount,1);
  assert.equal(r.categoryGroups.length,1); assert.equal(r.categoryGroups[0].amount,10000);
 });
-test('legacy totals are unclassified and pending funds excluded from receipts',()=> {
+test('legacy totals and removed registration fees are unclassified, pending funds excluded from receipts',()=> {
  const r=summarize(rows,{mode:'payments'});
  assert.equal(r.amount,23000); assert.equal(r.confirmedCount,2);
- assert.equal(r.categoryGroups.find(g=>g.label==='未分类').amount,8000);
+ assert.equal(r.categoryGroups.find(g=>g.label==='未分类').amount,13000);
  assert.equal(r.missingDates,2);
- assert.equal(summarize(rows,{mode:'payments',category:'registration'}).amount,5000);
+ assert.throws(()=>summarize(rows,{mode:'payments',category:'registration'}));
 });
 test('invalid filters rejected',()=> {
  assert.throws(()=>validateFilters({start:'2026-12-01',end:'2026-11-01'}));

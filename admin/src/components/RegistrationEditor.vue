@@ -1,4 +1,5 @@
 <script setup>
+import { preparePaymentProof } from "../services/payment-proof-image";
 import { computed, onMounted, reactive, ref, nextTick, watch } from 'vue';
 import { validateIdNumber } from '../services/id-number';
 import { call } from '../services/api';
@@ -10,12 +11,28 @@ const recognitionMessage = ref('');
 const busy = ref(false), loading = ref(true), error = ref('');
 const options = reactive({ campuses: [], members: [], programs: [], canAssign: false, memberId: '' });
 const form = reactive({ unionMember: null, veteran: null, name: '', phone: '', gender: '', ethnicity: '', education: '', workUnit: '', note: '', registrationSource: '', referrer: '', currentAddress: '', politicalStatus: '', emergencyName: '', emergencyPhone: '', idNumber: '', studyCampus: '', actualPaidAmount: '', level: '', school: '', major: '', campus: '', teacherId: '', ...props.registration });
+const isDevelopment = import.meta.env.DEV;
+function fillTestRegistration() {
+  if (!isDevelopment || props.registration || loading.value || busy.value) return;
+  const member = options.members.find(m => m.id === options.memberId) || options.members.find(m => m.campus);
+  const program = options.programs[0];
+  if (!member || !program) { error.value = '请先加载老师和专业选项'; return; }
+  Object.assign(form, {
+    name: '测试考生', phone: '13800000000', gender: '女', ethnicity: '汉族',
+    education: '专科', idNumber: '11010519491231002X', currentAddress: '测试地址（非真实资料）',
+    politicalStatus: '群众', workUnit: '测试单位', unionMember: false, veteran: false,
+    registrationSource: '新生', campus: member.campus || options.campuses[0],
+    studyCampus: options.campuses[0], teacherId: member.id,
+    level: program.level, school: program.school, major: program.major,
+    note: '开发测试资料，请勿作为真实报名使用'
+  });
+}
 const fieldErrors = reactive({});
 const editorForm = ref(null);
 const attempted = ref(false);
-const feeParts = [['registration', '报名费'], ['exam', '考试费'], ['materials', '高复教材资料费'], ['tuition', '高复学费']];
-const breakdown = reactive({ registration: 0, exam: '', materials: '', tuition: '', ...props.registration?.paymentBreakdown });
-const hasBreakdown = computed(() => feeParts.some(([key]) => key === 'registration' ? Number(breakdown[key]) > 0 : breakdown[key] !== '' && breakdown[key] != null));
+const feeParts = [['exam', '考试费'], ['materials', '高复教材资料费'], ['tuition', '高复学费']];
+const breakdown = reactive({ exam: '', materials: '', tuition: '', ...props.registration?.paymentBreakdown });
+const hasBreakdown = computed(() => feeParts.some(([key]) => breakdown[key] !== '' && breakdown[key] != null));
 const paidTotal = computed(() => (feeParts.reduce((sum, [key]) => sum + Math.round(Number(breakdown[key] || 0) * 100), 0) / 100).toFixed(2));
 function standardFees() {
   Object.assign(breakdown, { exam: form.level === '高起本' ? 160 : 120, materials: form.level === '高起本' ? 140 : 100, tuition: 380 });
@@ -57,7 +74,7 @@ function validateFields() {
   }
   if (!form.idNumber && !props.registration?.hasIdentity) fieldErrors.idNumber = '请填写身份证号';
   if (form.phone && !/^1[3-9]\d{9}$/.test(form.phone)) fieldErrors.phone = '请填写有效的11位手机号';
-  if (!(!form.campus && ['principal', 'admissions', 'finance', 'financeStaff'].includes(options.members.find(m => m.id === form.teacherId)?.position)) && !options.campuses.includes(form.campus)) fieldErrors.campus = '请选择报名校区';
+  if (!options.campuses.includes(form.campus)) fieldErrors.campus = '请选择报名校区';
   if (!options.members.some(member => member.id === form.teacherId)) fieldErrors.teacherId = '请选择所属老师';
   if (!levels.includes(form.level)) fieldErrors.level = '请选择报考层次';
   if (!registrationSources.includes(form.registrationSource)) fieldErrors.registrationSource = '请选择有效的报名来源';
@@ -84,31 +101,26 @@ async function focusError() {
 }
 watch(form, () => { if (attempted.value) validateFields(); }, { deep: true });
 async function chooseProof(event) {
-  const files = Array.from(event.target.files);
+  const files = Array.from(event.target.files || []);
+  event.target.value = '';
+  if (!files.length || busy.value) return;
   delete fieldErrors.paymentProofUpload;
-  form.paymentProofUploads = undefined;
-  if (!files.length) return;
-  if (files.length > 5 || files.some(file => !['image/jpeg', 'image/png'].includes(file.type)) || files.reduce((sum, file) => sum + file.size, 0) > 2 * 1024 * 1024) {
-    fieldErrors.paymentProofUpload = '每次最多5张PNG或JPG，总大小不超过2MB'; error.value = fieldErrors.paymentProofUpload; event.target.value = ''; return;
+  const previous = form.paymentProofUploads || [];
+  if (previous.length + files.length > 5 || files.some(file => !['image/jpeg', 'image/png'].includes(file.type))) {
+    error.value = '一次保存最多追加5张PNG或JPG凭证，请先保存已有图片后继续追加'; return;
   }
   busy.value = true;
   try {
     const uploads = [];
     for (const file of files) {
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = () => reject(new Error('读取图片失败'));
-        reader.readAsDataURL(file);
-      });
-      const upload = { base64, fileName: file.name };
-      recognitionMessage.value = `正在识别 ${file.name}…`;
-      try { upload.recognitionDraft = await call('recognizePaymentProof', { token: props.token, base64 }, { loading: false }); }
-      catch (e) { upload.recognitionDraft = { warning: e.message }; }
+      const upload = await preparePaymentProof(file);
+      recognitionMessage.value = `正在识别 ${file.name} 的付款金额和时间…`;
+      try { upload.recognitionDraft = await call('recognizePaymentProof', { token: props.token, base64: upload.base64 }, { loading: false }); }
+      catch (e) { upload.recognitionDraft = { warning: e.message || '识别失败，保存后可手动填写金额' }; }
       uploads.push(upload);
     }
-    form.paymentProofUploads = uploads;
-    recognitionMessage.value = '识别完成；保存后请在报名详情中对照凭证核对付款时间和金额。';
+    form.paymentProofUploads = [...previous, ...uploads];
+    recognitionMessage.value = `已添加 ${form.paymentProofUploads.length} 条缴费记录；保存后请逐条核对付款时间和金额。`;
     error.value = '';
   } catch (e) { error.value = e.message; }
   finally { busy.value = false; }
@@ -119,7 +131,7 @@ async function save() {
   if (!validateFields()) { error.value = '请检查标红的项目后再保存'; await focusError(); return; }
   busy.value = true; error.value = '';
   try {
-    await call('saveRegistration', { ...form, ...(hasBreakdown.value ? { paymentBreakdown: { ...breakdown } } : {}), token: props.token, registrationId: props.registration?.id, revision: props.registration?.revision });
+    await call('saveRegistration', { ...form, ...(hasBreakdown.value ? { paymentBreakdown: Object.fromEntries(feeParts.map(([key]) => [key, breakdown[key]])) } : {}), token: props.token, registrationId: props.registration?.id, revision: props.registration?.revision });
     emit('saved');
   } catch (e) {
     error.value = e.message;
@@ -136,7 +148,8 @@ async function save() {
   <div class="editor-backdrop" @click.self="!busy && emit('close')">
     <section class="editor-modal">
       <h2>{{ registration ? '修改报名信息' : '新增报名' }}</h2>
-      <!-- <p class="muted">可选择任意报名校区。所属老师与报名校区分别记录；修改报考志愿后，学制和报名费按层次确定。</p> -->
+      <button v-if="isDevelopment && !registration" type="button" class="outline" :disabled="loading || busy" @click="fillTestRegistration">一键填入测试资料</button>
+      <!-- <p class="muted">可选择任意报名校区。所属老师与报名校区分别记录；修改报考志愿后，学制和费用按层次确定。</p> -->
       <form ref="editorForm" novalidate @submit.prevent="save">
         <fieldset :disabled="busy || loading">
           <section class="info-section info-basic">
@@ -213,7 +226,7 @@ async function save() {
               <div class="fee-summary">
                 <div class="fee-summary-label">考前实际缴费合计：{{ hasBreakdown ? '¥' + paidTotal : form.actualPaidAmount == null || form.actualPaidAmount === '' ? '未填写' : '¥' + form.actualPaidAmount + '（历史总额，待补明细）' }}</div><button type="button" class="outline" :disabled="!form.level" @click="standardFees">按层次填入标准费用</button>
               </div>
-              <p v-if="recognitionMessage" role="status">{{ recognitionMessage }}</p><div v-for="(upload,index) in form.paymentProofUploads || []" :key="index"><strong>{{ upload.fileName }}</strong><p>{{ upload.recognitionDraft?.paidAt || '时间未识别' }} · {{ upload.recognitionDraft?.amount ? '¥' + upload.recognitionDraft.amount : '金额未识别' }}</p><small>{{ upload.recognitionDraft?.warning }}</small></div><label class="payment-proof-field"><span>上传缴费凭证</span><input type="file" multiple accept="image/jpeg,image/png" @change="chooseProof" :aria-invalid="!!fieldErrors.paymentProofUpload" /><small>可追加多张凭证；每次最多5张、合计2MB。历史凭证保留，保存后提交财务审核。</small><small v-if="fieldErrors.paymentProofUpload" class="field-error">{{ fieldErrors.paymentProofUpload }}</small></label>
+              <p v-if="recognitionMessage" role="status">{{ recognitionMessage }}</p><div v-for="(upload,index) in form.paymentProofUploads || []" :key="index" class="payment-proof-upload"><img :src="'data:image/jpeg;base64,' + upload.base64" alt="待上传缴费凭证" style="width:80px;height:100px;object-fit:contain" /><strong>缴费记录 {{ index + 1 }} · {{ upload.fileName }}</strong><button type="button" class="outline" :disabled="busy" @click="form.paymentProofUploads.splice(index, 1)">删除此凭证</button><p>{{ upload.recognitionDraft?.paidAt || '时间未识别' }} · {{ upload.recognitionDraft?.amount ? '¥' + upload.recognitionDraft.amount : '金额未识别' }}</p><small>{{ upload.recognitionDraft?.warning }}</small></div><label class="payment-proof-field"><span>上传缴费凭证</span><input type="file" multiple accept="image/jpeg,image/png" @change="chooseProof" :aria-invalid="!!fieldErrors.paymentProofUpload" /><small>可多选或连续追加图片，每张图片为一条缴费记录。自动压缩并识别金额，每次保存最多追加5张，历史记录保留。</small><small v-if="fieldErrors.paymentProofUpload" class="field-error">{{ fieldErrors.paymentProofUpload }}</small></label>
             </div>
           </section>
           <label class="note-field">备注<textarea v-model.trim="form.note" maxlength="1000" rows="3" placeholder="选填，最多1000字" :aria-invalid="!!fieldErrors.note"></textarea><small v-if="fieldErrors.note" class="field-error">{{ fieldErrors.note }}</small></label>
@@ -341,8 +354,17 @@ async function save() {
 
 .editor-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px
+}
+
+.editor-grid > * {
+  min-width: 0;
+}
+
+.payment-proof-upload {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
 }
 
 .editor-grid input,

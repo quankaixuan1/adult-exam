@@ -1,10 +1,12 @@
 <script setup>
+import HeaderFilterChoices from "../components/HeaderFilterChoices.vue";
+import TableHeaderFilter from "../components/TableHeaderFilter.vue";
 import SensitiveValue from "../components/SensitiveValue.vue";
 import { computed, onMounted, reactive, ref } from 'vue';
 import { Download } from 'lucide-vue-next';
 import { registrationXlsx } from '../services/registration-export';
 import { call } from '../services/api';
-import { statusLabels, paymentStatusLabels, materialCount } from '../services/registration';
+import { statusLabels, paymentStatusLabels, materialCount, showBoolean } from '../services/registration';
 import PaymentStatus from '../components/PaymentStatus.vue';
 import RegistrationDetail from '../components/RegistrationDetail.vue';
 import RegistrationEditor from '../components/RegistrationEditor.vue';
@@ -21,7 +23,7 @@ const canEdit = computed(() => data.admin?.role === 'super' || data.admin?.permi
 const canDelete = computed(() => data.admin?.canDeleteRegistrations === true);
 const deleting = ref(false);
 async function deleteRegistration(item) {
-  if (deleting.value || !window.confirm(`确定删除“${item.name}”的报名记录吗？删除后无法恢复。`)) return;
+  if (deleting.value || !window.confirm(`确定删除“${item.name}”的报名记录吗？记录将移入最近删除，保留至本学年十月第三个周末结束，期间可由管理人员恢复。`)) return;
   deleting.value = true;
   error.value = '';
   try {
@@ -30,12 +32,12 @@ async function deleteRegistration(item) {
   } catch (e) { showError(e); }
   finally { deleting.value = false; }
 }
-const filters = reactive({ school: '', major: '', level: '', classId: '', campus: '', teacherName: '', status: '', paymentStatus: '' });
-const filterOptions = reactive({ school: [], major: [], level: [], classId: [], campus: [], teacherName: [] });
+const filters = reactive({ studyCampus: '', registrationSource: '', unionMember: '', veteran: '', school: '', major: '', level: '', classId: '', campus: '', teacherName: '', status: '', paymentStatus: '' });
+const filterOptions = reactive({ studyCampus: [], registrationSource: [], school: [], major: [], level: [], classId: [], campus: [], teacherName: [] });
 const filterFields = [
-  { key: 'school', label: '学校' },
-  { key: 'major', label: '专业' },
-  { key: 'level', label: '层次' },
+  // { key: 'school', label: '学校' },
+  // { key: 'major', label: '专业' },
+  // { key: 'level', label: '层次' },
   { key: 'campus', label: '报名校区' },
   { key: 'teacherName', label: '所属老师' }
 ];
@@ -72,6 +74,7 @@ async function loadDashboard(page = 1, options = {}) {
   error.value = '';
   try {
     const result = await call('dashboard', {
+      ...filters,
       token: props.token,
       status: filters.status,
       paymentStatus: filters.paymentStatus,
@@ -137,6 +140,10 @@ async function openRegistration(registrationId) {
   }
   catch (e) { showError(e); return false; }
 }
+async function refreshPaymentDetails() {
+  if (!selected.value) return;
+  await Promise.all([openRegistration(selected.value.id), loadDashboard(data.page)]);
+}
 onMounted(() => Promise.all([
   loadDashboard(1, { loading: false }),
   loadFilterOptions()
@@ -165,17 +172,17 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
 
       </form>
       <div class="filter-bar">
-        <label><span>报名状态</span><select v-model="filters.status" @change="loadDashboard(1)">
+        <label><span>报名状态</span><select :value="Array.isArray(filters.status) ? '__multiple' : filters.status" @change="filters.status = $event.target.value; loadDashboard(1)"><option v-if="Array.isArray(filters.status)" value="__multiple" disabled>已选 {{ filters.status.length }} 项</option>
             <option value="">全部报名状态</option>
             <option v-for="(label, key) in statusLabels" :key="key" :value="key">{{ label }}</option>
           </select></label>
-        <label><span>缴费状态</span><select v-model="filters.paymentStatus" @change="loadDashboard(1)">
+        <label><span>缴费状态</span><select :value="Array.isArray(filters.paymentStatus) ? '__multiple' : filters.paymentStatus" @change="filters.paymentStatus = $event.target.value; loadDashboard(1)"><option v-if="Array.isArray(filters.paymentStatus)" value="__multiple" disabled>已选 {{ filters.paymentStatus.length }} 项</option>
             <option value="">全部缴费状态</option>
             <option v-for="(label, key) in paymentFilterLabels" :key="key" :value="key">{{ label }}</option>
           </select></label>
         <label v-for="field in filterFields" :key="field.key">
           <span>{{ field.label }}</span>
-          <select v-model="filters[field.key]" @change="loadDashboard(1)">
+          <select :value="Array.isArray(filters[field.key]) ? '__multiple' : filters[field.key]" @change="filters[field.key] = $event.target.value; loadDashboard(1)"><option v-if="Array.isArray(filters[field.key])" value="__multiple" disabled>已选 {{ filters[field.key].length }} 项</option>
             <option value="">全部{{ field.label }}</option>
             <option v-for="value in filterOptions[field.key]" :key="value" :value="value">
               {{ value }}
@@ -187,14 +194,36 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
         <table>
           <thead>
             <tr>
-              <th>缴费状态</th>
+              <th>
+                <TableHeaderFilter label="缴费状态" :active="!!filters.paymentStatus"><HeaderFilterChoices v-model="filters.paymentStatus" label="缴费状态" :options="paymentFilterLabels" @change="loadDashboard(1)" /></TableHeaderFilter>
+              </th>
               <th>考生</th>
-              <th>学校与专业</th>
-              <th>层次</th>
-              <th>校区/老师</th>
+              <th>
+                <TableHeaderFilter horizontal label="学校与专业" :active="!!(filters.school || filters.major)"><HeaderFilterChoices v-model="filters.school" label="学校" :options="filterOptions.school" @change="loadDashboard(1)" /><HeaderFilterChoices v-model="filters.major" label="专业" :options="filterOptions.major" @change="loadDashboard(1)" /></TableHeaderFilter>
+              </th>
+              <th>
+                <TableHeaderFilter label="层次" :active="!!(filters.level)"><HeaderFilterChoices v-model="filters.level" label="层次" :options="filterOptions.level" @change="loadDashboard(1)" /></TableHeaderFilter>
+              </th>
+              <th>
+                <TableHeaderFilter label="工会" :active="!!filters.unionMember"><HeaderFilterChoices v-model="filters.unionMember" label="工会" :options="{ true: '是', false: '否' }" @change="loadDashboard(1)" /></TableHeaderFilter>
+              </th>
+              <th>
+                <TableHeaderFilter label="退伍" :active="!!filters.veteran"><HeaderFilterChoices v-model="filters.veteran" label="退伍" :options="{ true: '是', false: '否' }" @change="loadDashboard(1)" /></TableHeaderFilter>
+              </th>
+              <th>
+                <TableHeaderFilter label="就读校区" :active="!!(filters.studyCampus)"><HeaderFilterChoices v-model="filters.studyCampus" label="就读校区" :options="filterOptions.studyCampus" @change="loadDashboard(1)" /></TableHeaderFilter>
+              </th>
+              <th>
+                <TableHeaderFilter label="来源" :active="!!(filters.registrationSource)"><HeaderFilterChoices v-model="filters.registrationSource" label="来源" :options="filterOptions.registrationSource" @change="loadDashboard(1)" /></TableHeaderFilter>
+              </th>
+              <th>
+                <TableHeaderFilter horizontal label="校区/老师" :active="!!(filters.campus || filters.teacherName)"><HeaderFilterChoices v-model="filters.campus" label="报名校区" :options="filterOptions.campus" @change="loadDashboard(1)" /><HeaderFilterChoices v-model="filters.teacherName" label="老师" :options="filterOptions.teacherName" @change="loadDashboard(1)" /></TableHeaderFilter>
+              </th>
               <!-- <th>材料</th> -->
               <th>提交时间</th>
-              <th>报名状态</th>
+              <th>
+                <TableHeaderFilter label="报名状态" :active="!!filters.status"><HeaderFilterChoices v-model="filters.status" label="报名状态" :options="statusLabels" @change="loadDashboard(1)" /></TableHeaderFilter>
+              </th>
 
               <th class="row-actions">操作</th>
             </tr>
@@ -207,19 +236,23 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
 
               <td><b>{{ item.name }}</b>
                 <!-- <small><SensitiveValue :value="item.phone" :registration-id="item.id" /></small> -->
-                 <small>{{ item.studentNo }}</small>
+                <small>{{ item.studentNo }}</small>
               </td>
               <td><b>{{ item.school }}</b><small>{{ item.major }}</small></td>
               <td>{{ item.level }}</td>
+              <td>{{ showBoolean(item.unionMember) }}</td>
+              <td>{{ showBoolean(item.veteran) }}</td>
+              <td>{{ item.studyCampus || '未提供' }}</td>
+              <td>{{ item.registrationSource || '未提供' }}</td>
               <td>{{ item.campus || '待定' }}<small>{{ item.teacherName || '待分配' }}</small></td>
               <!-- <td>{{ materialCount(item) }} / 4 项</td> -->
-              <td>{{ new Date(item.createdAt).toLocaleString('zh-CN') }}</td>
+              <td><time class="submission-date" :datetime="item.createdAt" :title="new Date(item.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })">{{ new Date(item.createdAt).toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' }) }}</time></td>
               <td><span class="status" :class="item.status">{{ statusLabels[item.status] }}</span></td>
 
               <td class="row-actions"><button class="link-button" @click="openReview(item)">查看详情</button><button v-if="canEdit" class="link-button" @click="editRegistration(item)">修改</button><button v-if="canDelete" class="link-button delete-button" :disabled="deleting" @click="deleteRegistration(item)">删除</button></td>
             </tr>
             <tr v-if="!rows.length">
-              <td colspan="8" class="empty">暂无符合条件的报名记录</td>
+              <td colspan="12" class="empty">暂无符合条件的报名记录</td>
             </tr>
           </tbody>
         </table>
@@ -228,11 +261,15 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
           条</span><button class="outline" :disabled="data.page * data.pageSize >= data.filteredTotal" @click="loadDashboard(data.page + 1)">下一页</button></div>
     </section>
     <p v-if="error" class="error banner">{{ error }}</p>
-    <RegistrationDetail v-if="selected" :registration="selected" :token="token" :admin="data.admin || admin" @close="selected = null" @saved="selected = null; loadDashboard(data.page)" />
+    <RegistrationDetail v-if="selected" :registration="selected" :token="token" :admin="data.admin || admin" @close="selected = null" @saved="selected = null; loadDashboard(data.page)" @payment-saved="refreshPaymentDetails" />
     <RegistrationEditor v-if="editing" :registration="editRecord" :token="token" @close="editing = false" @saved="savedRegistration" />
   </div>
 </template>
 <style scoped>
+.submission-date {
+  cursor: help;
+}
+
 .registrations-view table {
   border-collapse: separate;
   border-spacing: 0;

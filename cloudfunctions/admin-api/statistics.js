@@ -1,4 +1,4 @@
-const categories = { registration: '报名费', exam: '考试费', materials: '高复教材资料费', tuition: '高复学费', unclassified: '未分类' };
+const categories = { exam: '考试费', materials: '高复教材资料费', tuition: '高复学费', unclassified: '未分类' };
 function validateFilters(f) {
   if (f.mode && !['registrations', 'payments'].includes(f.mode)) throw Error('统计类型无效');
   if (f.category && !categories[f.category]) throw Error('缴费类别无效');

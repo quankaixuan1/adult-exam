@@ -13,7 +13,7 @@ test('queries and write authorization agree for every member, campus and owner',
   for (const member of members) for (const campus of [...campuses, '']) for (const owner of [...members, { id: '' }]) {
     const admin = { _id: `account-${member.id}`, memberId: member.id, schools: ['院校A'], classIds: ['班级A'] };
     const record = { campus, teacherId: owner.id, school: '院校A', classId: '班级A' };
-    const expected = !member.campus || member.id === owner.id || (member.position === 'campusLead' && member.campus === campus);
+    const expected = ['jingji-wu'].includes(member.id) ? member.campus === campus : !member.campus || member.id === owner.id || (member.position === 'campusLead' && member.campus === campus);
     assert.equal(canAccess(admin, record), expected);
     assert.equal(matches(record, scopeFor(admin, command)), expected);
     const prefixed = Object.fromEntries(Object.entries(record).map(([key, value]) => [`registration.${key}`, value]));
@@ -30,4 +30,12 @@ test('organization copies stay synchronized', () => {
   const root = path.resolve(__dirname, '..');
   const canonical = fs.readFileSync(path.join(root, 'cloudfunctions/admin-api/organization.js'), 'utf8');
   for (const file of ['cloudfunctions/student-api/organization.js', 'miniprogram/data/organization.js']) assert.equal(fs.readFileSync(path.join(root, file), 'utf8'), canonical);
+});
+
+test('Wenyi Wu is a teacher and cannot see another teacher students', () => {
+ const admin = { _id: 'wushan01', memberId: 'wenyi-wu' };
+ assert.equal(members.find(m => m.id === admin.memberId).position, 'teacher');
+ assert.equal(canAccess(admin, {campus:'文一校区',teacherId:'wenyi-wu'}), true);
+ assert.equal(canAccess(admin, {campus:'文一校区',teacherId:'wenyi-deng'}), false);
+ assert.equal(canAccess(admin, {campus:'经济校区',teacherId:'jingji-wu'}), false);
 });

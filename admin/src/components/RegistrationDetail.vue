@@ -9,7 +9,7 @@ import PaymentStatus from './PaymentStatus.vue';
 import MaterialList from './MaterialList.vue';
 import MaterialPreview from './MaterialPreview.vue';
 const props = defineProps({ registration: Object, token: String, admin: Object });
-const emit = defineEmits(['close', 'saved']);
+const emit = defineEmits(['close', 'saved', 'payment-saved']);
 const selected = computed(() => props.registration);
 const paymentStatusText = computed(() => paymentStatusLabels[props.registration.paymentStatus] || '未缴费');
 const canReviewPayment = computed(() => ['finance_pending', 'teacher_pending'].includes(props.registration.paymentStatus) && (props.admin?.role === 'super' || ['finance', 'financeStaff'].includes(props.admin?.position)));
@@ -62,6 +62,16 @@ const canViewMaterials = computed(() => props.admin?.role === 'super' || props.a
 const isFinance = computed(() => props.admin?.role !== 'super' && ['finance', 'financeStaff'].includes(props.admin?.position));
 const canReview = computed(() => !isFinance.value && (props.admin?.role === 'super' || props.admin?.permissions?.includes('registrations.review')));
 const busy = ref(false);
+async function deleteProof(entry) {
+  if (busy.value || !window.confirm('确定删除这张缴费凭证吗？删除后需重新核验缴费；删除全部凭证后将显示未缴费。')) return;
+  busy.value = true; error.value = '';
+  try {
+    await call('deletePaymentProof', { token: props.token, registrationId: selected.value.id, revision: selected.value.revision, proofIndex: entry.index });
+    closeProof(); emit('payment-saved');
+  } catch (e) { showError(e); }
+  finally { busy.value = false; }
+}
+
 const error = ref('');
 const review = reactive({ status: props.registration.status, remark: props.registration.reviewRemark || '' });
 function showError(e) { error.value = e.message || '操作未完成，请重试'; }
@@ -139,18 +149,23 @@ async function saveReview() {
         <p>缴费状态：
           <PaymentStatus :status="selected.paymentStatus" />
         </p>
-        <p v-if="selected.paymentBreakdown">报名费：¥{{ selected.paymentBreakdown.registration || 0 }} · 考试费：¥{{ selected.paymentBreakdown.exam }} · 高复教材资料费：¥{{ selected.paymentBreakdown.materials }} · 高复学费：¥{{ selected.paymentBreakdown.tuition }}</p>
+        <p v-if="selected.paymentBreakdown">考试费：¥{{ selected.paymentBreakdown.exam }} · 高复教材资料费：¥{{ selected.paymentBreakdown.materials }} · 高复学费：¥{{ selected.paymentBreakdown.tuition }}</p>
         <p>实际缴费金额：{{ selected.actualPaidAmount == null ? '未填写' : '¥' + selected.actualPaidAmount }}</p>
         <p>{{ selected.paymentRemark }}</p>
-        <PaymentProofRecognition v-for="entry in (canViewMaterials && (admin?.role === 'super' || admin?.permissions?.includes('registrations.edit')) ? selected.paymentProofs : [])" :key="selected.id + '-ocr-' + entry.index + '-' + selected.revision" :token="token" :registration="selected" :entry="entry" @saved="emit('saved')"/>
+        <h4>缴费记录（{{ selected.paymentProofs?.length || 0 }} 条）</h4>
+        <p v-if="!selected.paymentProofs?.length" class="muted">暂无缴费记录</p>
         <div v-for="entry in (canViewMaterials ? selected.paymentProofs : [])" :key="selected.id + '-' + entry.index" class="proof-actions">
           <PaymentProofThumbnail :token="token" :registration-id="selected.id" :proof-index="entry.index" @open="proof('view', entry.index)" />
-          <span>凭证 {{ entry.index + 1 }} · {{ entry.fileName }}</span>
-          <button v-if="openingProof" class="outline proof-loading" disabled>加载中…</button>
-          <template v-else>
-            <button class="outline" @click="proof('view', entry.index)">查看缴费凭证</button>
-            <button class="outline" @click="proof('download', entry.index)">下载缴费凭证</button>
-          </template>
+          <span>缴费记录 {{ entry.index + 1 }} · {{ entry.fileName }}</span><span>{{ entry.paymentInfo ? '已核对金额：¥' + entry.paymentInfo.amount : '待核对金额：' + (entry.recognitionDraft?.amount ? '¥' + entry.recognitionDraft.amount : '未识别') }}</span>
+          <div class="proof-buttons">
+            <button v-if="openingProof" class="outline proof-loading" disabled>加载中…</button>
+            <template v-else>
+              <!-- <button class="outline" @click="proof('view', entry.index)">查看缴费凭证</button> -->
+              <button class="outline" @click="proof('download', entry.index)">下载缴费凭证</button>
+              <button v-if="admin?.role === 'super' || admin?.permissions?.includes('registrations.edit')" class="outline" style="color: #b42318" :disabled="busy" @click="deleteProof(entry)">删除凭证</button>
+            </template>
+          </div>
+          <PaymentProofRecognition v-if="admin?.role === 'super' || admin?.permissions?.includes('registrations.edit')" :key="selected.id + '-ocr-' + entry.index + '-' + selected.revision" :token="token" :registration="selected" :entry="entry" @saved="emit('payment-saved')" />
         </div>
         
         <template v-if="canReviewPayment">
@@ -328,12 +343,21 @@ async function saveReview() {
   margin: 12px 0 16px
 }
 
-.proof-actions .outline {
-  min-width: 130px
+.info-payment > h4 {
+  padding-top: 12px;
+  border-top: 1px solid #e3e8f1;
 }
 
-.proof-actions .proof-loading {
-  width: 270px
+.proof-buttons {
+  display: flex;
+  flex: 0 0 100%;
+  gap: 10px;
+}
+
+.proof-buttons .outline {
+  flex: 1;
+  min-width: 0;
+  width: auto;
 }
 
 .permission-notice {

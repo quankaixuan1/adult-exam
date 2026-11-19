@@ -1,3 +1,4 @@
+const { allocateStudentNumber } = require('./student-number');
 const registrationSchema = require('./registration-schema.json');
 const cloud = require('wx-server-sdk');
 const { validateIdNumber } = require('./id-number');
@@ -328,10 +329,18 @@ async function handle(action, data, openId) {
     const programs = await fetchProgramCatalog();
     const clean = validateRegistration(data, undefined, undefined, programs);
     // Ownership is resolved from a server-issued referral, never client teacher fields.
-    if (data.referralId) Object.assign(clean, await resolveReferral(data.referralId));
+    if (data.referralId) {
+      const { canChooseCampus, ...affiliation } = await resolveReferral(data.referralId);
+      if (canChooseCampus) {
+        if (!require('./organization').campuses.includes(data.campus)) throw new ApiError('请选择报名校区', 'INVALID_INPUT');
+        affiliation.campus = data.campus;
+      }
+      Object.assign(clean, affiliation);
+    }
     const now = isoNow();
     const registration = { _id: student._id, studentId: student._id, ...clean, status: 'pending', paymentStatus: 'pending', revision: 1, consentVersion: 'cloud-v1', createdAt: now, updatedAt: now };
     await withTransaction(db, async transaction => {
+      registration.studentNo = await allocateStudentNumber(db, transaction, registration.campus);
       await transaction.collection('registrations').add({ data: registration });
       await addNotification(transaction, {
         type: 'registration_completed', audience: 'admin', registrationId: student._id,

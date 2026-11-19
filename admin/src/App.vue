@@ -10,6 +10,7 @@ import ProgramsView from './views/ProgramsView.vue';
 import MyAccountView from './views/MyAccountView.vue';
 import AccountsView from './views/AccountsView.vue';
 import StatisticsView from './views/StatisticsView.vue';
+import RecentlyDeletedView from './views/RecentlyDeletedView.vue';
 import RegistrationsView from './views/RegistrationsView.vue';
 const { recovery, mode, busy, error, token, submitAuth, logout, qr, qrBusy, startWechat, stopWechat } = useAuth();
 const tab = ref('registrations');
@@ -18,7 +19,8 @@ const admin = ref(null);
 const registrations = ref(null);
 const accounts = ref(null);
 const statistics = ref(null);
-function refresh() { if (tab.value === 'statistics') return statistics.value?.refresh(); if (tab.value === 'accounts') accounts.value?.refresh(); else registrations.value?.refresh(); }
+const recentlyDeleted = ref(null);
+function refresh() { if (tab.value === 'recently-deleted') return recentlyDeleted.value?.refresh(); if (tab.value === 'statistics') return statistics.value?.refresh(); if (tab.value === 'accounts') accounts.value?.refresh(); else registrations.value?.refresh(); }
 const canReadNotifications = computed(() => mode.value === 'dashboard' && !!admin.value &&
   (admin.value.role === 'super' || admin.value.permissions?.includes('registrations.view')));
 const { notifications, unreadTotal, error: notificationError, refreshing: refreshingNotifications,
@@ -49,6 +51,7 @@ async function openNotification(item) {
   @refresh-notifications="refreshNotifications" @logout="logout" @refresh="refresh">
   <ReferralCode :token="token"/>
   <RegistrationsView ref="registrations" v-show="tab === 'registrations'" :token="token" :admin="admin" @admin="admin = $event" @expired="logout"/>
+  <RecentlyDeletedView v-if="tab === 'recently-deleted' && canReadNotifications" ref="recentlyDeleted" :token="token" :admin="admin" @expired="logout" @restored="registrations?.refresh()"/>
   <StatisticsView v-if="tab === 'statistics'" ref="statistics" :token="token" @expired="logout"/>
   <AccountsView v-if="tab === 'accounts' && admin?.role === 'super'" ref="accounts" :token="token"/>
   <MyAccountView v-if="tab === 'my-account'" :token="token" :recovery="recovery" @changed="logout"/>

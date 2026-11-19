@@ -9,7 +9,7 @@ const members = [
   { id: 'admissions', name: '高建锋', position: 'admissions', campus: '' },
   { id: 'finance', name: '邵萍', position: 'finance', campus: '' },
   ...[
-    ['wenyi-deng', '邓博文', 0, true], ['wenyi-liu', '刘慧敏', 0], ['wenyi-rong', '荣健', 0],
+    ['wenyi-wu', '吴珊', 0], ['wenyi-deng', '邓博文', 0, true], ['wenyi-liu', '刘慧敏', 0], ['wenyi-rong', '荣健', 0],
     ['wenyi-yang', '杨伟红', 0], ['wenyi-gao', '高燕妮', 0], ['wenyi-jiang', '姜驰', 0],
     ['xiasha-zhou', '周燕', 1, true], ['xiasha-huang', '黄婷婷', 1], ['xiasha-ke', '柯琳', 1],
     ['chengxi-ying', '应晨霞', 2, true], ['chengxi-zhou', '周钱露', 2],

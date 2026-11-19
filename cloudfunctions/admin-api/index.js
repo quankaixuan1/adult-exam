@@ -456,6 +456,7 @@ function publicRegistration(item) {
 }
 
 const registrationFilterFields = [
+  "registrationSource",
   "school",
   "major",
   "level",
@@ -480,6 +481,7 @@ async function registrationFilters(admin) {
       .match(scope(admin))
       .group({
         _id: {
+          registrationSource: "$registrationSource",
           school: "$school",
           major: "$major",
           level: "$level",
@@ -544,23 +546,26 @@ async function dashboard(admin, data) {
   const baseScope = scope(admin);
   const conditions = [baseScope];
 
-  if (status) {
-    conditions.push({ status });
+  const selections = value => {
+    if (value === undefined || value === '') return [];
+    const values = Array.isArray(value) ? value : [value];
+    if (values.length > 500 || values.some(v => typeof v !== 'string' || !v.trim() || v.length > 160)) throw new ApiError('筛选条件无效', 'INVALID_INPUT');
+    return [...new Set(values.map(v => v.trim()))];
+  };
+  for (const [field, allowed] of [['status', ['pending', 'approved', 'rejected']], ['paymentStatus', ['pending', 'finance_pending', 'paid', 'payment_rejected']]]) {
+    const values = selections(data[field]);
+    if (values.some(v => !allowed.includes(v))) throw new ApiError('状态筛选无效', 'INVALID_INPUT');
+    if (field === 'paymentStatus' && values.includes('finance_pending')) values.push('teacher_pending');
+    if (values.length) conditions.push({ [field]: command.in(values) });
   }
-  if (data.paymentStatus) {
-    if (!['pending', 'finance_pending', 'paid', 'payment_rejected'].includes(data.paymentStatus)) throw new ApiError('缴费状态无效', 'INVALID_INPUT');
-    conditions.push({ paymentStatus: data.paymentStatus === 'finance_pending' ? command.in(['finance_pending', 'teacher_pending']) : data.paymentStatus });
-  }
-
   for (const field of registrationFilterFields) {
-    if (data[field] !== undefined && typeof data[field] !== "string") {
-      throw new ApiError("筛选条件无效", "INVALID_INPUT");
-    }
-    const value = typeof data[field] === "string" ? data[field].trim() : "";
-    if (value.length > 160) {
-      throw new ApiError("筛选条件过长", "INVALID_INPUT");
-    }
-    if (value) conditions.push({ [field]: value });
+    const values = selections(data[field]);
+    if (values.length) conditions.push({ [field]: command.in(values) });
+  }
+  for (const field of ['unionMember', 'veteran']) {
+    const values = selections(data[field]);
+    if (values.some(v => !['true', 'false'].includes(v))) throw new ApiError('筛选条件无效', 'INVALID_INPUT');
+    if (values.length) conditions.push({ [field]: command.in(values.map(v => v === 'true')) });
   }
 
   const keyword = typeof data.keyword === "string" ? data.keyword.trim() : "";
@@ -862,6 +867,7 @@ async function wechatIdentity(data, bind = false) {
 const webLogin = require('./web-login')({ db, cloud, ApiError, withTransaction, adminDocument, createSession });
 const createReferral = require('./referrals')({ db, ApiError });
 const programs = require('./programs');
+const deletePaymentProof = require('./delete-payment-proof')({ db, ApiError, requirePermission, scopedRegistration, withTransaction, canAccess });
 const paymentProofReview = require('./payment-proof-review')({ db, cloud, ApiError, requirePermission, scopedRegistration, withTransaction, canAccess });
 async function handle(action, data) {
   if (['createWebLogin', 'confirmWebLogin', 'pollWebLogin'].includes(action)) return webLogin(action, data);
@@ -874,6 +880,7 @@ async function handle(action, data) {
   if (action === "catalog")
     return { demo: false, programs };
   const admin = await authenticate(data.token);
+  if (action === 'deletePaymentProof') return deletePaymentProof(admin, data);
   if (action === 'recognizePaymentProof') return paymentProofReview(admin, data);
   if (action === 'confirmPaymentProof') return paymentProofReview(admin, data, true);
   if (action === 'myAccount') return publicAdmin(admin);
@@ -917,12 +924,43 @@ async function handle(action, data) {
   if (action === "saveAccount") return accountSave(admin, data);
   if (action === "deleteAccount") return accountDelete(admin, data);
   if (action === "materialLink") return materialLink(admin, data);
+  if (action === 'recentlyDeleted') {
+    requirePermission(admin, 'registrations.view');
+    const page = Math.max(1, Math.min(10000, Number(data.page) || 1));
+    const result = await db.collection('deleted_registrations').where(command.and([
+      scopeFor(admin, command, 'record.'), { expiresAt: command.gt(isoNow()) }
+    ])).orderBy('deletedAt', 'desc').skip((page - 1) * 30).limit(30).get();
+    return { records: result.data.map(item => ({ id: item._id, name: item.record.name,
+      school: item.record.school, major: item.record.major, teacherName: item.record.teacherName,
+      deletedAt: item.deletedAt, expiresAt: item.expiresAt })), page };
+  }
+  if (action === 'restoreRegistration') {
+    if (!isManagement(admin)) throw new ApiError('仅管理人员可恢复报名记录', 'FORBIDDEN');
+    if (!/^[a-f0-9]{64}$/.test(data.id || '')) throw new ApiError('记录无效', 'INVALID_INPUT');
+    await withTransaction(db, async tx => {
+      const item = (await tx.collection('deleted_registrations').doc(data.id).get()).data;
+      if (!item || item.expiresAt <= isoNow() || !canAccess(admin, item.record)) throw new ApiError('记录已过期或无权恢复', 'FORBIDDEN');
+      // add deliberately refuses to overwrite a newer registration with the same ID.
+      await tx.collection('registrations').add({ data: item.record });
+      await tx.collection('deleted_registrations').doc(data.id).remove();
+      await tx.collection('audit_logs').add({ data: { adminId: admin._id, action: 'registration_restored', registrationId: item.record._id, createdAt: isoNow() } });
+    });
+    return { success: true };
+  }
   if (action === "deleteRegistration") {
     if (!isManagement(admin)) throw new ApiError("仅管理人员可删除报名记录", "FORBIDDEN");
     if (!/^[a-f0-9]{64}$/.test(data.registrationId || ""))
       throw new ApiError("报名记录无效", "INVALID_INPUT");
     await scopedRegistration(admin, data.registrationId);
     await withTransaction(db, async tx => {
+      const record = (await tx.collection('registrations').doc(data.registrationId).get()).data;
+      if (!record || !canAccess(admin, record)) throw new ApiError('记录不存在或无权删除', 'FORBIDDEN');
+      const deletedAt = isoNow();
+      const expiry = require('./deletion-retention').deletionExpiry(deletedAt);
+      await tx.collection('deleted_registrations').add({ data: {
+        _id: randomBytes(32).toString('hex'), record, deletedBy: admin._id,
+        deletedAt, expiresAt: expiry.toISOString(), purgeAt: expiry
+      } });
       await tx.collection("registrations").doc(data.registrationId).remove();
       await tx.collection("audit_logs").doc(`registration-delete-${randomBytes(16).toString("hex")}`).set({ data: {
         adminId: admin._id, action: "registration_deleted", registrationId: data.registrationId, createdAt: isoNow()

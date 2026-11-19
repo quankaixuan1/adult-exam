@@ -9,5 +9,5 @@ module.exports = ({ db, ApiError }) => async id => {
   const member = referral && organization.memberById(referral.teacherId);
   if (!admin || admin.disabled || admin.createdAt !== referral.accountCreatedAt || !member || (admin.memberId || (admin._id === 'primary' ? 'principal' : '')) !== member.id) throw new ApiError('报名二维码已停用，请联系老师', 'INVALID_INPUT');
   const campus = organization.managementPositions.includes(member.position) ? '' : member.campus;
-  return { referralId: id, teacherId: member.id, teacherName: member.name, campus, sourceAdminId: admin._id };
+  return { canChooseCampus: organization.managementPositions.includes(member.position), referralId: id, teacherId: member.id, teacherName: member.name, campus, sourceAdminId: admin._id };
 };

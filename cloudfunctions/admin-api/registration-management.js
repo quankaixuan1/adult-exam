@@ -1,3 +1,4 @@
+const { allocateStudentNumber } = require('./student-number');
 const { paymentChanged } = require('./payment-change');
 const registrationSchema = require('./registration-schema.json');
 const programs = require('./programs');
@@ -21,8 +22,7 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
     if (!current && !isManagement(admin)) teacherId = membership(admin)?.id || '';
     const teacher = memberById(teacherId);
     if (!teacher) fail('请选择有效的所属老师');
-    const unassignedManagement = !campus && ['principal', 'admissions', 'finance', 'financeStaff'].includes(teacher.position);
-    if (!unassignedManagement && !campuses.includes(campus)) fail('请选择有效的报名校区');
+    if (!campuses.includes(campus)) fail('请选择有效的报名校区');
     if (current && !isManagement(admin) && (campus !== current.campus || teacherId !== current.teacherId)) {
       throw new ApiError('调整校区或所属老师需由管理岗位操作', 'FORBIDDEN');
     }
@@ -61,8 +61,8 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
       if (typeof parts !== 'object' || Array.isArray(parts)) fail('缴费明细格式无效');
       next.paymentBreakdown = {};
       let cents = 0;
-      for (const [key, label] of [['registration', '报名费'], ['exam', '考试费'], ['materials', '高复教材资料费'], ['tuition', '高复学费']]) {
-        if (!/^\d{1,8}(\.\d{1,2})?$/.test(String(parts[key] ?? (key === 'registration' ? 0 : '')))) fail(`请填写有效的${label}，最多两位小数`);
+      for (const [key, label] of [['exam', '考试费'], ['materials', '高复教材资料费'], ['tuition', '高复学费']]) {
+        if (!/^\d{1,8}(\.\d{1,2})?$/.test(String(parts[key] ?? ''))) fail(`请填写有效的${label}，最多两位小数`);
         next.paymentBreakdown[key] = Number(parts[key] ?? 0);
         cents += Math.round(Number(parts[key] ?? 0) * 100);
       }
@@ -142,6 +142,7 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
       if (uploads.length || paymentChanged(current, fields)) {
         Object.assign(next, { paymentStatus: 'finance_pending', paymentRemark: '', paymentFinanceId: '', paymentFinanceReviewedAt: '' });
       }
+      if (!current?.studentNo) next.studentNo = await allocateStudentNumber(db, transaction, fields.campus);
       if (creating) await transaction.collection('registrations').doc(id).set({ data: next });
       else await transaction.collection('registrations').doc(id).update({ data: next });
       await transaction.collection('audit_logs').doc(`registration-edit-${id}-${next.revision}`).set({ data: {

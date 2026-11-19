@@ -22,7 +22,7 @@ Page({
       const current = (await api.me()).student;
       const draft = this.data.draft;
       const customProgram = draft.program.id === 'other' ? { level: draft.program.level, school: draft.program.schoolOriginal || draft.program.school, major: draft.program.major } : undefined;
-      await api[draft.editing ? 'update' : 'register']({ ...draft, campus: undefined, teacherId: undefined, teacherName: undefined, programId: draft.program.id, customProgram, program: undefined, idNumberMasked: undefined, consent: true }, current.id);
+      await api[draft.editing ? 'update' : 'register']({ ...draft, campus: draft.campus, teacherId: undefined, teacherName: undefined, programId: draft.program.id, customProgram, program: undefined, idNumberMasked: undefined, consent: true }, current.id);
       wx.removeStorageSync('registrationFormDraft');
       if (draft.editing) { wx.showToast({ title: '修改已提交', icon: 'success' }); wx.redirectTo({ url: '/pages/my/my' }); }
       else wx.redirectTo({ url: '/pages/payment/payment' });

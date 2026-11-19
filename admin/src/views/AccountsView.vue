@@ -57,31 +57,152 @@ defineExpose({ refresh: load });
         <h3>{{ campus || '管理岗位' }}</h3>
         <p v-for="member in organization.members.filter(m => m.campus === campus)" :key="member.id">
           <b>{{ member.name }}</b> · {{ organization.positions[member.position] }}
-          <small>{{ accounts.some(a => a.memberId === member.id && !a.disabled) ? '已开通账号' : '待开通账号' }}</small>
+          <small>{{accounts.some(a => a.memberId === member.id && !a.disabled) ? '已开通账号' : '待开通账号'}}</small>
         </p>
       </section>
     </div>
-    <p v-if="error" class="error" role="alert">{{ error }}</p><p v-if="message" class="muted" role="status">{{ message }}</p>
-    <div class="table-wrap"><table><thead><tr><th>名称 / 账号</th><th>授权范围</th><th>权限</th><th>状态</th><th></th></tr></thead><tbody>
-      <tr v-for="account in accounts" :key="account.id"><td><b>{{ account.displayName }}</b><small>{{ account.username }} · {{ organization.positions[account.position] || '自定义权限' }}</small></td><td>{{ scopeLabel(account) }}</td><td>{{ account.role === 'super' ? '全部' : account.permissions.map(p => permissions[p]).join('、') }}</td><td>{{ account.disabled ? '已停用' : '启用' }}</td><td><button v-if="account.role !== 'super'" class="link-button" :disabled="busy" @click="edit(account)">修改权限 / 重置密码</button><button v-if="account.role !== 'super'" class="link-button delete-account" :disabled="busy" @click="removeAccount(account)">删除账号</button></td></tr>
-    </tbody></table></div>
+    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <p v-if="message" class="muted" role="status">{{ message }}</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>名称 / 账号</th>
+            <th>授权范围</th>
+            <th>权限</th>
+            <th>状态</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="account in accounts" :key="account.id">
+            <td><b>{{ account.displayName }}</b><small>{{ account.username }} · {{ organization.positions[account.position] || '自定义权限' }}</small></td>
+            <td>{{ scopeLabel(account) }}</td>
+            <td>{{account.role === 'super' ? '全部' : account.permissions.map(p => permissions[p]).join('、')}}</td>
+            <td>{{ account.disabled ? '已停用' : '启用' }}</td>
+            <td><button v-if="account.role !== 'super'" class="link-button" :disabled="busy" @click="edit(account)">修改权限 / 重置密码</button><button v-if="account.role !== 'super'" class="link-button delete-account" :disabled="busy" @click="removeAccount(account)">删除账号</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <form class="account-form" @submit.prevent="save">
       <h3>{{ editing ? '修改账号' : '新增账号' }}</h3>
-      <label>组织成员<select v-model="form.memberId" :required="!editing" @change="selectMember"><option value="">{{ editing ? '旧账号授权（尚未绑定）' : '请选择组织成员' }}</option><option v-for="member in organization.members" :key="member.id" :value="member.id">{{ member.name }} · {{ member.campus || '管理岗位' }} · {{ organization.positions[member.position] }}</option></select></label>
-      <label>登录账号<input v-model.trim="form.username" :disabled="editing" required pattern="[a-z0-9_-]{2,32}" placeholder="2–32位字母、数字、下划线或短横线"/></label>
-      <label>名称<input v-model.trim="form.displayName" required maxlength="40"/></label>
-      <label>{{ editing ? '重置密码（留空保留原密码）' : '初始密码' }}<input v-model="form.password" type="password" :required="!editing" minlength="10" maxlength="128" autocomplete="new-password"/></label>
-      <fieldset><legend>功能权限</legend><label v-for="(label,key) in permissions" :key="key" class="check"><input type="checkbox" v-model="form.permissions" :value="key"/>{{ label }}</label></fieldset>
-      <fieldset v-if="!form.memberId && editing"><legend>旧账号学校范围（绑定组织成员后停用）</legend><label v-for="school in schools" :key="school" class="check"><input type="checkbox" v-model="form.schools" :value="school"/>{{ school }}</label></fieldset>
-      <fieldset v-if="!form.memberId && editing"><legend>旧账号班级范围</legend><label v-for="id in classIds" :key="id" class="check"><input type="checkbox" v-model="form.classIds" :value="id"/>{{ id }}</label></fieldset>
-      <label class="check"><input type="checkbox" v-model="form.disabled"/>停用该账号</label>
+      <label>组织成员<select v-model="form.memberId" :required="!editing" @change="selectMember">
+          <option value="">{{ editing ? '旧账号授权（尚未绑定）' : '请选择组织成员' }}</option>
+          <option v-for="member in organization.members" :key="member.id" :value="member.id">{{ member.name }} · {{ member.campus || '管理岗位' }} · {{ organization.positions[member.position] }}</option>
+        </select></label>
+      <label>登录账号<input v-model.trim="form.username" :disabled="editing" required pattern="[a-z0-9_-]{2,32}" placeholder="2–32位字母、数字、下划线或短横线" /></label>
+      <label>名称<input v-model.trim="form.displayName" required maxlength="40" /></label>
+      <label>{{ editing ? '重置密码（留空保留原密码）' : '初始密码' }}<input v-model="form.password" type="password" :required="!editing" minlength="10" maxlength="128" autocomplete="new-password" /></label>
+      <fieldset>
+        <legend>功能权限</legend><label v-for="(label, key) in permissions" :key="key" class="check"><input type="checkbox" v-model="form.permissions" :value="key" />{{ label }}</label>
+      </fieldset>
+      <fieldset v-if="!form.memberId && editing">
+        <legend>旧账号学校范围（绑定组织成员后停用）</legend><label v-for="school in schools" :key="school" class="check"><input type="checkbox" v-model="form.schools" :value="school" />{{ school }}</label>
+      </fieldset>
+      <fieldset v-if="!form.memberId && editing">
+        <legend>旧账号班级范围</legend><label v-for="id in classIds" :key="id" class="check"><input type="checkbox" v-model="form.classIds" :value="id" />{{ id }}</label>
+      </fieldset>
+      <label class="check"><input type="checkbox" v-model="form.disabled" />停用该账号</label>
       <div class="actions"><button class="primary" :disabled="busy">{{ busy ? '保存中…' : '保存账号与权限' }}</button><button type="button" class="outline" @click="reset">清空 / 新增</button></div>
     </form>
   </section>
 </template>
 <style scoped>
-.delete-account{color:#c0392b;margin-left:12px}
+.delete-account {
+  color: #c0392b;
+  margin-left: 12px
+}
 
-.org-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:20px 0}.org-card{padding:16px;background:#f6f8fc;border-radius:10px}.org-card h3{margin-top:0}.org-card p{font-size:13px}.org-card small{display:block;color:#71809c;margin-top:4px}.account-form select{display:block;width:100%;padding:12px;margin-top:8px}
-.account-panel{padding:24px}.account-panel h2{margin-top:0}.account-form{max-width:760px;margin-top:30px}.account-form>label{display:block;margin:16px 0}.account-form input:not([type=checkbox]){display:block;width:100%;padding:12px;border:1px solid #d9e1ee;border-radius:9px;margin-top:8px}.check{display:inline-flex!important;align-items:center;gap:8px;margin:8px 18px 8px 0!important}.check input{width:auto}fieldset{border:1px solid #e3e8f1;border-radius:10px;padding:16px;margin:16px 0}legend{font-weight:700}.actions{display:flex;gap:12px}.actions .primary{width:auto}
+.org-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin: 20px 0
+}
+
+.org-card {
+  padding: 16px;
+  background: #f6f8fc;
+  border-radius: 10px
+}
+
+.org-card h3 {
+  margin-top: 0
+}
+
+.org-card p {
+  font-size: 13px
+}
+
+.org-card small {
+  display: block;
+  color: #71809c;
+  margin-top: 4px
+}
+
+.account-form select {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px
+}
+
+.account-panel {
+  padding: 24px
+}
+
+.account-panel h2 {
+  margin-top: 0
+}
+
+.account-form {
+  max-width: 760px;
+  margin-top: 30px
+}
+
+.account-form>label {
+  display: block;
+  margin: 16px 0
+}
+
+.account-form input:not([type=checkbox]) {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d9e1ee;
+  border-radius: 9px;
+  margin-top: 8px
+}
+
+.check {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 18px 8px 0 !important
+}
+
+.check input {
+  width: auto
+}
+
+fieldset {
+  border: 1px solid #e3e8f1;
+  border-radius: 10px;
+  padding: 16px;
+  margin: 16px 0
+}
+
+legend {
+  font-weight: 700
+}
+
+.actions {
+  display: flex;
+  gap: 12px
+}
+
+.actions .primary {
+  width: auto
+}
 </style>

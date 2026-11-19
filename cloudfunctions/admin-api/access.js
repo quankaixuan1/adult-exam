@@ -2,9 +2,11 @@ const { memberById, managementPositions } = require('./organization');
 const isSuper = admin => admin._id === 'primary';
 function membership(admin) { return memberById(admin.memberId); }
 function isManagement(admin) { return isSuper(admin) || managementPositions.includes(membership(admin)?.position); }
+const campusOnlyMembers = new Set(['jingji-wu']);
 function canAccess(admin, record) {
   if (isManagement(admin)) return true;
   const member = membership(admin);
+  if (member && campusOnlyMembers.has(member.id)) return record.campus === member.campus;
   if (member) return record.teacherId === member.id || (member.position === 'campusLead' && record.campus === member.campus);
   if (admin.memberId) return false;
   return (admin.schools || []).includes(record.school) || (admin.classIds || []).includes(record.classId);
@@ -12,6 +14,7 @@ function canAccess(admin, record) {
 function scopeFor(admin, command, prefix = '') {
   if (isManagement(admin)) return {};
   const member = membership(admin);
+  if (member && campusOnlyMembers.has(member.id)) return { [`${prefix}campus`]: member.campus };
   const rules = [];
   if (member) {
     rules.push({ [`${prefix}teacherId`]: member.id });

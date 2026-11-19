@@ -24,6 +24,7 @@ Page({
         ...item,
         label: `${item.name}（${item.campus || "招生负责人"}）`,
       })),
+    canChooseCampus: false,
     campus: "",
     teacherId: "",
     teacherLabel: "",
@@ -36,6 +37,12 @@ Page({
     if (!draft.name) {
       wx.redirectTo({ url: "/pages/register/register" });
       return;
+    }
+    if (draft.referralId && !draft.editing) {
+      try {
+        const referral = await api.resolveReferral(draft.referralId);
+        this.setData({ canChooseCampus: referral.canChooseCampus === true });
+      } catch (e) { this.setData({ error: e.message || '二维码信息读取失败' }); return; }
     }
     await this.loadCatalog();
   },
@@ -170,7 +177,7 @@ Page({
       ...draft,
       program: this.data.program,
       consent: this.data.consent,
-      campus: draft.referralId || draft.editing ? draft.campus : "",
+      campus: this.data.canChooseCampus ? this.data.campus : draft.referralId || draft.editing ? draft.campus : "",
       teacherId: draft.referralId || draft.editing ? draft.teacherId : "",
       teacherName: draft.referralId || draft.editing ? draft.teacherName : "",
     });
@@ -278,8 +285,10 @@ Page({
       this.setData({ error: "请先阅读报名、调剂和隐私说明，并勾选同意。" });
       return;
     }
-    // 扫码归属保存在草稿中，由服务端在提交时核验。
-    this.setData({ campus: "", teacherId: "", teacherLabel: "", error: "" });
+    if (this.data.canChooseCampus && !this.data.campuses.includes(this.data.campus)) {
+      this.setData({ error: '请选择报名校区' }); return;
+    }
+    this.setData({ error: "" });
     this.saveDraft();
     wx.navigateTo({ url: "/pages/confirm/confirm" });
   },

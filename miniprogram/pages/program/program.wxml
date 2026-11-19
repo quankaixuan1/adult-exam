@@ -21,6 +21,7 @@
   </view>
 
   <view class="card">
+    <view wx:if="{{canChooseCampus}}" class="form-row"><text class="label">报名校区<text class="required">*</text></text><picker class="form-picker" range="{{campuses}}" bindchange="chooseCampus"><view class="picker">{{campus || '请选择报名校区'}}</view></picker></view>
     <text class="section">报名前请阅读</text>
     <!-- <view class="form-row"><text class="label">报名校区<text class="required">*</text></text><picker class="form-picker" range="{{campuses}}" bindchange="chooseCampus"><view class="picker">{{campus || '请选择报名校区'}}</view></picker></view>
     <view class="form-row"><text class="label">报名老师<text class="required">*</text></text><picker class="form-picker" range="{{teachers}}" range-key="label" bindchange="chooseTeacher"><view class="picker">{{teacherLabel || '请选择报名老师'}}</view></picker></view>

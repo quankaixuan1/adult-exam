@@ -3,17 +3,35 @@ const { createHash, createHmac } = require('crypto');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const hmac = (key, value) => createHmac('sha256', key).update(value).digest();
 function parseReceipt(lines) {
-  const text = lines.map(l => l.DetectedText || '').join('\n');
+  const text = lines.map(l => l.DetectedText || '').join('\n').normalize('NFKC').replace(/[–—−]/g, '-');
+  const alipayReceipt = /账单详情/.test(text) && /支付宝/.test(text) && /交易成功/.test(text) && /收款方式|收钱码收款/.test(text);
+  const receivedReceipt = /已收钱/.test(text) && /二维码收款/.test(text);
   const dates = [];
-  const pattern = /(?:付款时间|支付时间|交易时间|转账时间|到账时间)[：:\s]*(20\d{2})[年\/-](\d{1,2})[月\/-](\d{1,2})日?\s*(\d{1,2})[:：](\d{2})(?:[:：](\d{2}))?/g;
-  for (const m of text.matchAll(pattern)) {
+  const pattern = /(?:付款时间|支付时间|交易时间|转账时间|到账时间|收款时间)[：:\s]*(20\d{2})[年\/-](\d{1,2})[月\/-](\d{1,2})日?\s*(\d{1,2})[:：](\d{2})(?:[:：](\d{2}))?/g;
+  const matches = [...text.matchAll(pattern)];
+  if (!matches.length && alipayReceipt) {
+    matches.push(...text.matchAll(new RegExp(pattern.source.replace('付款时间|支付时间|交易时间|转账时间|到账时间|收款时间', '创建时间'), 'g')));
+  }
+  for (const m of matches) {
     const local = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}:${m[6] || '00'}`;
     try { validateTime(local); dates.push(local); } catch (_) {}
   }
   const unique = [...new Set(dates)];
   const amounts = [...text.matchAll(/(?:实付金额|付款金额|支付金额|转账金额|交易金额)[：:\s]*[¥￥]?\s*(\d+(?:,\d{3})*(?:\.\d{1,2})?)/g)].map(m=>m[1].replaceAll(',',''));
+  const paidReceipt = !/退款|退回|撤销|交易关闭/.test(text) && (
+    /付款成功|支付成功|转账成功/.test(text) ||
+    (/账单详情|账单/.test(text) && /交易成功/.test(text) && /支出|付款方式|支付方式/.test(text))
+  );
+  if (!amounts.length) {
+    for (const line of text.split('\n')) {
+      const match = line.trim().match(/^([+-])\s*¥?\s*(\d+(?:,\d{3})*\.\d{2})$/);
+      if (!match || Number(match[2].replaceAll(',', '')) <= 0) continue;
+      const validDirection = match[1] === '+' ? receivedReceipt || alipayReceipt : paidReceipt;
+      if (validDirection) amounts.push(match[2].replaceAll(',', ''));
+    }
+  }
   const amountValues = [...new Set(amounts)];
-  return { paidAt: unique.length === 1 ? unique[0] : '', amount: amountValues.length === 1 ? amountValues[0] : '', transactionNo: text.match(/(?:交易单号|交易号|转账单号)[：:\s]*([A-Za-z0-9]{8,80})/)?.[1] || '', channel: /微信/.test(text) ? '微信' : /支付宝/.test(text) ? '支付宝' : /银行/.test(text) ? '银行转账' : '', warning: unique.length !== 1 ? '付款时间缺失或存在多个时间，请查看原图手动核对。' : '识别结果仅供参考，请核对原图后确认。' };
+  return { paidAt: unique.length === 1 ? unique[0] : '', amount: amountValues.length === 1 ? amountValues[0] : '', transactionNo: text.match(/(?:交易单号|交易号|转账单号)[：:\s]*([A-Za-z0-9]{8,80})/)?.[1] || '', channel: /微信|财付通/.test(text) ? '微信' : /支付宝/.test(text) ? '支付宝' : /银行/.test(text) ? '银行转账' : '', warning: unique.length !== 1 ? '付款时间缺失或存在多个时间，请查看原图手动核对。' : '识别结果仅供参考，请核对原图后确认。' };
 }
 function validateTime(value) {
   if (typeof value !== 'string' || !/^20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(value)) throw Error('请填写完整的实际付款时间');

@@ -42,29 +42,30 @@ async function openNotification(item) {
 </script>
 
 <template>
-<main v-if="mode === 'loading'" class="center-screen"><div class="loader"></div><p>正在连接管理服务</p></main>
-<LoginView v-else-if="mode !== 'dashboard'" :mode="mode" :busy="busy" :error="error" @submit="submitAuth" :qr="qr" :qr-busy="qrBusy" @wechat="startWechat" @cancel-wechat="stopWechat"/>
-<AdminLayout v-else :admin="admin" v-model:tab="tab" :error="error"
-  :notifications="notifications" :unread-total="unreadTotal" :notification-error="notificationError"
-  :refreshing-notifications="refreshingNotifications" :opening-notification="openingNotification"
-  :can-read-notifications="canReadNotifications" @open-notification="openNotification"
-  @refresh-notifications="refreshNotifications" @logout="logout" @refresh="refresh">
-  <ReferralCode :token="token"/>
-  <RegistrationsView ref="registrations" v-show="tab === 'registrations'" :token="token" :admin="admin" @admin="admin = $event" @expired="logout"/>
-  <RecentlyDeletedView v-if="tab === 'recently-deleted' && canReadNotifications" ref="recentlyDeleted" :token="token" :admin="admin" @expired="logout" @restored="registrations?.refresh()"/>
-  <StatisticsView v-if="tab === 'statistics'" ref="statistics" :token="token" @expired="logout"/>
-  <AccountsView v-if="tab === 'accounts' && admin?.role === 'super'" ref="accounts" :token="token"/>
-  <MyAccountView v-if="tab === 'my-account'" :token="token" :recovery="recovery" @changed="logout"/>
-  <ProgramsView v-if="tab === 'programs'"/>
-</AdminLayout>
-<Teleport to="body">
-  <div v-if="mode === 'dashboard' && loading" class="global-loading">
-    <div class="global-loading-card" role="status" aria-live="polite">
-      <div class="loader" aria-hidden="true"></div>
-      <span>正在加载，请稍候…</span>
+  <main v-if="mode === 'loading'" class="center-screen">
+    <div class="loader"></div>
+    <p>正在连接管理服务</p>
+  </main>
+  <LoginView v-else-if="mode !== 'dashboard'" :mode="mode" :busy="busy" :error="error" @submit="submitAuth" :qr="qr" :qr-busy="qrBusy" @wechat="startWechat" @cancel-wechat="stopWechat" />
+  <AdminLayout v-else :admin="admin" v-model:tab="tab" :error="error" :notifications="notifications" :unread-total="unreadTotal" :notification-error="notificationError" :refreshing-notifications="refreshingNotifications" :opening-notification="openingNotification" :can-read-notifications="canReadNotifications" @open-notification="openNotification" @refresh-notifications="refreshNotifications" @logout="logout" @refresh="refresh">
+    <RegistrationsView ref="registrations" v-show="tab === 'registrations'" :token="token" :admin="admin" @admin="admin = $event" @expired="logout" />
+    <RecentlyDeletedView v-if="tab === 'recently-deleted' && canReadNotifications" ref="recentlyDeleted" :token="token" :admin="admin" @expired="logout" @restored="registrations?.refresh()" />
+    <StatisticsView v-if="tab === 'statistics'" ref="statistics" :token="token" @expired="logout" />
+    <AccountsView v-if="tab === 'accounts' && admin?.role === 'super'" ref="accounts" :token="token" />
+    <div v-if="tab === 'my-account'" class="account-settings-grid">
+      <MyAccountView :token="token" :recovery="recovery" @changed="logout" />
+      <ReferralCode :token="token" :admin="admin" />
     </div>
-  </div>
-</Teleport>
+    <ProgramsView v-if="tab === 'programs'" />
+  </AdminLayout>
+  <Teleport to="body">
+    <div v-if="mode === 'dashboard' && loading" class="global-loading">
+      <div class="global-loading-card" role="status" aria-live="polite">
+        <div class="loader" aria-hidden="true"></div>
+        <span>正在加载，请稍候…</span>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -92,5 +93,18 @@ async function openNotification(item) {
 .global-loading-card .loader {
   flex-shrink: 0;
   margin: 0;
+}
+
+.account-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .account-settings-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

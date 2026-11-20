@@ -1,13 +1,13 @@
 <script setup>
 import { computed } from 'vue';
-import { Check, Loader, X, Bell } from 'lucide-vue-next';
+import { Check, Loader, X, Bell, HandCoins } from 'lucide-vue-next';
 import { paymentStatusLabels } from '../services/registration';
-const props = defineProps({ status: String });
-const icon = computed(() => ({ paid: Check, finance_pending: Loader, teacher_pending: Loader, payment_rejected: X })[props.status] || Bell);
+const props = defineProps({ status: String, label: String });
+const icon = computed(() => ({ paid: Check, finance_pending: Loader, teacher_pending: Loader, needs_changes: X, payment_rejected: X , awaiting_payment: HandCoins})[props.status] || Bell);
 </script>
 <template>
   <span class="payment-badge" :class="status || 'pending'">
-    <component :is="icon" :size="16" :stroke-width="2" aria-hidden="true" />{{ paymentStatusLabels[status] || '未缴费' }}
+    <component :is="icon" :size="16" :stroke-width="2" aria-hidden="true" />{{ label || paymentStatusLabels[status] || '未缴费' }}
   </span>
 </template>
 <style scoped>
@@ -39,6 +39,7 @@ const icon = computed(() => ({ paid: Check, finance_pending: Loader, teacher_pen
   border-color: #86c99c;
 }
 
+.needs_changes,
 .payment_rejected {
   color: #b42318;
   background: #fee4e2;

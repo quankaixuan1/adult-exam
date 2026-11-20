@@ -29,6 +29,8 @@ Page({
  async saveAccount(){await this.run(async()=>{await api.call('saveAccount',this.data.account);this.setData({account:null,accounts:(await api.call('accounts')).accounts});});},
  deleteAccount(e){wx.showModal({title:'删除账号',content:'确认删除该管理账号？',success:r=>{if(r.confirm)this.run(async()=>{await api.call('deleteAccount',{accountId:e.currentTarget.dataset.id});this.setData({accounts:(await api.call('accounts')).accounts});});}});},
  exportRows(){this.run(async()=>{const rows=new Map();for(let page=1;;page++){const d=await api.call('dashboard',{...this.data.query,keyword:this.data.keyword,page,exportIdentity:true});for(const r of d.registrations)rows.set(r.id,r);if(page*d.pageSize>=d.filteredTotal||!d.registrations.length)break;}if(!rows.size)throw new Error('暂无可导出的报名');const cols=[...fields.filter(([k])=>k!=='idNumber'),['idNumber','身份证号'],['level','层次'],['campus','报名校区'],['teacherName','所属老师'],['studyCampus','就读校区'],['status','报名状态'],['paymentStatus','缴费状态']];const cell=v=>{let t=String(v??'');if(/^[=+@\-\t\r]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';};const csv='\ufeff'+[cols.map(x=>cell(x[1])).join(','),...[...rows.values()].map(r=>cols.map(([k])=>cell(r[k])).join(','))].join('\r\n');const path=wx.env.USER_DATA_PATH+'/报名记录-'+Date.now()+'.csv';wx.getFileSystemManager().writeFileSync(path,csv,'utf8');if(wx.shareFileMessage)await wx.shareFileMessage({filePath:path,fileName:'报名记录.csv'});else throw new Error('当前微信不支持文件分享，请升级微信');});},
- referral(){this.run(async()=>{const r=await api.call('createReferral');this.setData({referralCode:r});});},
+ referral(){this.loadReferral(false);},
+ refreshReferral(){this.loadReferral(true);},
+ loadReferral(refresh){this.run(async()=>{const r=await api.call('createReferral',{refresh});this.setData({referralCode:r});});},
  logout(){this.run(()=>api.logout());}
 });

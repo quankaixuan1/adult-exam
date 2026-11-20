@@ -35,8 +35,9 @@ test('OCR works without global fetch or AbortSignal and handles bad responses', 
   process.env.OCR_SECRET_ID='test';process.env.OCR_SECRET_KEY='test';
   https.request=(url, options, callback)=>{
    assert.equal(url,'https://ocr.tencentcloudapi.com');
+   assert.equal(options.headers['X-TC-Action'], 'GeneralAccurateOCR');
    const req=new EventEmitter();req.destroy=e=>{req.emit('error',e);req.emit('close');};
-   req.end=()=>process.nextTick(()=>{const res=new EventEmitter();res.statusCode=status;callback(res);res.emit('data',Buffer.from(body));res.emit('end');req.emit('close');});return req;
+   req.end=(payload)=>{assert.deepEqual(JSON.parse(payload), { ImageBase64: 'test' }); return process.nextTick(()=>{const res=new EventEmitter();res.statusCode=status;callback(res);res.emit('data',Buffer.from(body));res.emit('end');req.emit('close');});};return req;
   };
   const {recognize}=require('../cloudfunctions/admin-api/payment-ocr');
   assert.equal((await recognize('test')).paidAt,'2025-01-02T13:04:05');
@@ -46,4 +47,28 @@ test('OCR works without global fetch or AbortSignal and handles bad responses', 
   https.request=original;global.fetch=oldFetch;global.AbortSignal=oldAbort;
   for(const [key,value] of [['OCR_SECRET_ID',oldId],['OCR_SECRET_KEY',oldKey]]) if(value===undefined)delete process.env[key];else process.env[key]=value;
  }
+});
+
+test('extracts received amounts from WeChat and successful Alipay bills', () => {
+ const parse = lines => require('../cloudfunctions/admin-api/payment-ocr').parseReceipt(lines.map(DetectedText => ({DetectedText})));
+ const wechat = parse(['二维码收款', '+220.00', '已收钱', '收款时间', '2025年11月17日 14:20:57', '本服务由财付通提供']);
+ assert.equal(wechat.amount, '220.00');
+ assert.equal(wechat.paidAt, '2025-11-17T14:20:57');
+ assert.equal(wechat.channel, '微信');
+ const alipay = parse(['账单详情', '+220.00', '交易成功', '创建时间 2025–11–18 16:45:41', '收款方式', '支付宝商家服务']);
+ assert.equal(alipay.amount, '220.00');
+ assert.equal(alipay.paidAt, '2025-11-18T16:45:41');
+ assert.equal(parse(['创建时间 2025-11-18 16:45:41', '+220.00']).paidAt, '');
+ assert.equal(parse(['二维码收款', '已收钱', '+220.00', '+320.00']).amount, '');
+});
+
+test('extracts negative display amounts only from successful outgoing payments', () => {
+ const {parseReceipt} = require('../cloudfunctions/admin-api/payment-ocr');
+ const amount = (...lines) => parseReceipt(lines.map(DetectedText => ({DetectedText}))).amount;
+ assert.equal(amount('支付成功', '−￥220.00'), '220.00');
+ assert.equal(amount('账单详情', '交易成功', '支出', '-220.00'), '220.00');
+ assert.equal(amount('退款成功', '-220.00'), '');
+ assert.equal(amount('支付成功', '已退款', '-220.00'), '');
+ assert.equal(amount('账单详情', '-220.00'), '');
+ assert.equal(amount('支付成功', '-220.00', '-320.00'), '');
 });

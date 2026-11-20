@@ -19,7 +19,7 @@
 
 后端功能修改 cloudfunctions 中的代码，并单独上传部署；编译小程序不会更新云函数。在微信开发者工具中右键对应云函数，选择“上传并部署：云端安装依赖”。使用 CLI 时进入实际函数目录后执行代码更新，更新后回读核对代码，避免目录参数与实际打包路径不一致。
 
-学校专业前端列表位于 miniprogram/data/programs.js，学生云端校验列表位于 cloudfunctions/student-api/index.js，后台录入列表位于 cloudfunctions/admin-api/programs.js，变更时需同步三处。
+招生专业目录唯一来源为 `cloudfunctions/admin-api/programs.js`，并由 `admin-api` 的公开 `catalog` API 提供。小程序、管理后台和学生报名校验都读取这份 API，不维护本地列表副本。调整专业后只需部署 `admin-api` 即可生效，无需重新编译小程序或构建管理后台。首次上线本次 API 接入代码时，先部署 admin-api，再部署 student-api，并发布更新后的小程序和管理后台。
 
 ## 组织架构与报名归属
 
@@ -104,9 +104,9 @@
 
 网页调用不具备小程序云调用身份，会返回 INVALID_WX_ACCESS_TOKEN。因此网页二维码已改为服务端通过 stable_token 和 getwxacodeunlimit 生成。需在 admin-api 云函数环境变量中设置 `WECHAT_APP_SECRET`（AppID wxe1a773261a11fb90 对应的小程序密钥），只在云端配置，不放入前端、仓库或聊天。原有 PII_ENCRYPTION_KEY 必须保留。代码包须包含 wechat-code.js。二维码使用正式版且检查页面存在，正式版必须包含 pages/web-login/web-login。
 
-### 当前扫码测试模式
+### 当前扫码版本
 
-2026-11-06 按测试需求将二维码默认版本改为 trial（体验版），check_path=false；已在线验证二维码生成成功以及轮询返回 pending。无需提交审核或发布正式版，但需上传包含登录确认页的代码并设为体验版，扫码微信需有体验权限。仅真机调试不会更新体验版。后续正式启用时在 admin-api 设置 WECHAT_LOGIN_ENV_VERSION=release，将同时恢复正式页面路径校验；此配置覆盖上文正式版默认说明。
+2026-11-13 登录二维码默认版本改为 release（正式版），check_path=true，与老师报名二维码一致。部署 admin-api 时需确保 WECHAT_LOGIN_ENV_VERSION 未设置或设为 release；若仍配置为 trial，环境变量将覆盖代码默认值。正式版小程序必须包含 pages/web-login/web-login 登录确认页。
 
 ## 老师首次绑定修改密码
 
@@ -115,3 +115,8 @@
 发布需同步更新 admin-api 云函数及小程序登录页及页面配置；旧版小程序首次绑定因未传入新密码会被拒绝，因此须协调云函数部署与小程序版本发布。验证：`node --test tests/admin-wechat.test.js tests/admin-web-login.test.js`。
 
 老师招生二维码单独使用 WECHAT_REFERRAL_ENV_VERSION，默认 release（正式版），并校验 pages/referral/referral 已发布。网页登录二维码继续使用 WECHAT_LOGIN_ENV_VERSION。部署 admin-api 后重新生成招生码，旧二维码图片不会自动更新版本。
+
+### 最近删除
+后台删除报名现在会在同一事务中将完整记录存入 `deleted_registrations`，再从正式报名集合移除。后台“最近删除”默认收起，按原档案数据权限查询；管理人员可恢复，恢复遇到相同报名 ID 时拒绝覆盖。保留期截至每年十月第三个完整周末的周日结束（北京时间），即第三个星期六之后的星期一 00:00 到期；当年截止后删除的记录保留至下一年截止时间，过期记录不再显示或允许恢复。此功能不能找回上线前已物理删除的记录。
+
+部署前创建 `deleted_registrations` 集合，客户端读写权限关闭，仅由云函数访问。为 `purgeAt` 日期字段配置 TTL 到期清理（0 秒偏移），使过期档案自动物理清理；未配置 TTL 时应用仍禁止访问过期记录，但数据库不会自动清理。按控制台查询提示为权限范围字段、`expiresAt` 和 `deletedAt` 创建所需索引。发布 `admin-api` 云函数及重新构建的管理后台。云存储材料不随档案删除而清理，以支持保留期内恢复。

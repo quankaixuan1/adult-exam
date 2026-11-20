@@ -421,10 +421,11 @@ function publicRegistration(item) {
     studyCampus: item.studyCampus || "",
     actualPaidAmount: item.actualPaidAmount ?? null,
     paymentBreakdown: item.paymentBreakdown || null,
-    paymentProofs: (item.paymentProofs || (item.materials?.paymentProof ? [item.materials.paymentProof] : [])).map((p, index) => ({ index, fileName: p.fileName, uploadedAt: p.uploadedAt, paymentInfo: p.paymentInfo || null, recognitionDraft: p.recognitionDraft || null })),
+    paymentProofs: (item.paymentProofs || (item.materials?.paymentProof ? [item.materials.paymentProof] : [])).map((p, index) => ({ index, rejected: item.paymentStatus === "payment_rejected" && (item.rejectedPaymentProofIds || []).includes(p.fileId), fileName: p.fileName, uploadedAt: p.uploadedAt, paymentInfo: p.paymentInfo || null, recognitionDraft: p.recognitionDraft || null })),
     programId: item.programId || "",
     studentNo: item.studentNo || "",
     paymentStatus: item.paymentStatus || "pending",
+    registrationStage: registrationStage(item),
     paymentRemark: item.paymentRemark || "",
     major: item.major,
     fee: item.fee,
@@ -471,6 +472,8 @@ async function registrationFilters(admin) {
   const values = Object.fromEntries(
     registrationFilterFields.map((field) => [field, new Set()]),
   );
+  const schoolMajors = new Map();
+  const campusTeachers = new Map();
   const batchSize = 200;
   let offset = 0;
 
@@ -502,6 +505,18 @@ async function registrationFilters(admin) {
       .end();
 
     for (const item of result.list) {
+      const school = item._id?.school;
+      const major = item._id?.major;
+      if (typeof school === "string" && school.trim() && typeof major === "string" && major.trim()) {
+        if (!schoolMajors.has(school)) schoolMajors.set(school, new Set());
+        schoolMajors.get(school).add(major);
+      }
+      const campus = item._id?.campus;
+      const teacherName = item._id?.teacherName;
+      if (typeof campus === "string" && campus.trim() && typeof teacherName === "string" && teacherName.trim()) {
+        if (!campusTeachers.has(campus)) campusTeachers.set(campus, new Set());
+        campusTeachers.get(campus).add(teacherName);
+      }
       for (const field of registrationFilterFields) {
         const value = item._id && item._id[field];
         if (typeof value === "string" && value.trim()) values[field].add(value);
@@ -511,12 +526,26 @@ async function registrationFilters(admin) {
     offset += batchSize;
   }
 
-  return Object.fromEntries(
-    registrationFilterFields.map((field) => [
-      field,
-      [...values[field]].sort((a, b) => a.localeCompare(b, "zh-CN")),
-    ]),
-  );
+  return {
+    ...Object.fromEntries(
+      registrationFilterFields.map((field) => [
+        field,
+        [...values[field]].sort((a, b) => a.localeCompare(b, "zh-CN")),
+      ]),
+    ),
+    schoolMajors: [...schoolMajors]
+      .map(([parent, children]) => ({
+        parent,
+        children: [...children].sort((a, b) => a.localeCompare(b, "zh-CN")),
+      }))
+      .sort((a, b) => a.parent.localeCompare(b.parent, "zh-CN")),
+    campusTeachers: [...campusTeachers]
+      .map(([parent, children]) => ({
+        parent,
+        children: [...children].sort((a, b) => a.localeCompare(b, "zh-CN")),
+      }))
+      .sort((a, b) => a.parent.localeCompare(b.parent, "zh-CN")),
+  };
 }
 
 function exportIdentity(record) {
@@ -529,6 +558,15 @@ function exportIdentity(record) {
     decipher.setAuthTag(Buffer.from(encrypted.tag, 'base64'));
     return Buffer.concat([decipher.update(Buffer.from(encrypted.data, 'base64')), decipher.final()]).toString('utf8');
   } catch (_) { throw new ApiError('身份证解密失败，请检查加密密钥配置', 'SERVICE_CONFIG'); }
+}
+
+const paymentReviewStatuses = ['finance_pending', 'teacher_pending'];
+function registrationStage(record) {
+  if (record.status === 'rejected' || record.paymentStatus === 'payment_rejected') return 'needs_changes';
+  if (record.paymentStatus === 'paid') return 'paid';
+  if (paymentReviewStatuses.includes(record.paymentStatus)) return 'finance_pending';
+  if (record.status === 'approved') return 'awaiting_payment';
+  return 'registered';
 }
 
 async function dashboard(admin, data) {
@@ -552,6 +590,22 @@ async function dashboard(admin, data) {
     if (values.length > 500 || values.some(v => typeof v !== 'string' || !v.trim() || v.length > 160)) throw new ApiError('筛选条件无效', 'INVALID_INPUT');
     return [...new Set(values.map(v => v.trim()))];
   };
+  const stages = selections(data.registrationStage);
+  if (stages.length) {
+    const unpaid = command.or([{ paymentStatus: command.nin(['paid', ...paymentReviewStatuses]) }, { paymentStatus: command.exists(false) }]);
+    const registrationNotRejected = command.or([{ status: command.neq('rejected') }, { status: command.exists(false) }]);
+    const paymentNotRejected = command.or([{ paymentStatus: command.neq('payment_rejected') }, { paymentStatus: command.exists(false) }]);
+    const stageQueries = {
+      needs_changes: command.or([{ status: 'rejected' }, { paymentStatus: 'payment_rejected' }]),
+      paid: command.and([registrationNotRejected, { paymentStatus: 'paid' }]),
+      finance_pending: command.and([registrationNotRejected, { paymentStatus: command.in(paymentReviewStatuses) }]),
+      awaiting_payment: command.and([unpaid, paymentNotRejected, { status: 'approved' }]),
+      registered: command.and([unpaid, paymentNotRejected,
+        command.or([{ status: command.nin(['approved', 'rejected']) }, { status: command.exists(false) }])]),
+    };
+    if (stages.some(stage => !Object.hasOwn(stageQueries, stage))) throw new ApiError('状态筛选无效', 'INVALID_INPUT');
+    conditions.push(command.or(stages.map(stage => stageQueries[stage])));
+  }
   for (const [field, allowed] of [['status', ['pending', 'approved', 'rejected']], ['paymentStatus', ['pending', 'finance_pending', 'paid', 'payment_rejected']]]) {
     const values = selections(data[field]);
     if (values.some(v => !allowed.includes(v))) throw new ApiError('状态筛选无效', 'INVALID_INPUT');
@@ -567,6 +621,26 @@ async function dashboard(admin, data) {
     if (values.some(v => !['true', 'false'].includes(v))) throw new ApiError('筛选条件无效', 'INVALID_INPUT');
     if (values.length) conditions.push({ [field]: command.in(values.map(v => v === 'true')) });
   }
+
+  const parseDate = (value) => {
+    if (value === undefined || value === '') return null;
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      throw new ApiError('报名时间格式无效', 'INVALID_INPUT');
+    }
+    const [year, month, day] = value.split('-').map(Number);
+    const calendarDate = new Date(Date.UTC(year, month - 1, day));
+    if (calendarDate.getUTCFullYear() !== year || calendarDate.getUTCMonth() !== month - 1 || calendarDate.getUTCDate() !== day) {
+      throw new ApiError('报名时间无效', 'INVALID_INPUT');
+    }
+    return new Date(`${value}T00:00:00+08:00`);
+  };
+  const startDate = parseDate(data.startDate);
+  const endDate = parseDate(data.endDate);
+  if (startDate && endDate && startDate > endDate) {
+    throw new ApiError('报名开始时间不能晚于结束时间', 'INVALID_INPUT');
+  }
+  if (startDate) conditions.push({ createdAt: command.gte(startDate) });
+  if (endDate) conditions.push({ createdAt: command.lt(new Date(endDate.getTime() + 24 * 60 * 60 * 1000)) });
 
   const keyword = typeof data.keyword === "string" ? data.keyword.trim() : "";
 
@@ -738,6 +812,14 @@ async function reviewPayment(admin, data) {
       throw new ApiError('缴费凭证须由财务老师或超级管理员审核', 'FORBIDDEN');
     if (data.decision === "approve" && !current.materials?.paymentProof?.fileId)
       throw new ApiError("尚未上传缴费凭证", "INVALID_STATE");
+    let rejectedPaymentProofIds = [];
+    if (data.decision === 'reject') {
+      const proofs = current.paymentProofs || (current.materials?.paymentProof ? [current.materials.paymentProof] : []);
+      const indices = data.rejectedProofIndices;
+      if (!Array.isArray(indices) || !indices.length || !indices.every(i => Number.isSafeInteger(i) && i >= 0 && proofs[i]?.fileId))
+        throw new ApiError('请选择需要重传的缴费记录', 'INVALID_INPUT');
+      rejectedPaymentProofIds = [...new Set(indices.map(i => proofs[i].fileId))];
+    }
     const paymentStatus = data.decision === 'reject' ? 'payment_rejected' : 'paid';
     const now = isoNow(),
       revision = current.revision + 1;
@@ -748,6 +830,7 @@ async function reviewPayment(admin, data) {
         data: {
           paymentStatus,
           paymentRemark: remark,
+          rejectedPaymentProofIds,
           revision,
           updatedAt: now,
           paymentFinanceId: admin._id,
@@ -909,7 +992,7 @@ async function handle(action, data) {
     await audit(admin, 'password_changed');
     return { changed: true };
   }
-  if (action === 'createReferral') return createReferral(admin);
+  if (action === 'createReferral') return createReferral(admin, { refresh: data.refresh === true });
   if (action === "registrationOptions")
     return registrationManagement.options(admin);
   if (action === "saveRegistration")

@@ -4,20 +4,23 @@ import PaymentProofThumbnail from "./PaymentProofThumbnail.vue";
 import SensitiveValue from "./SensitiveValue.vue";
 import { computed, reactive, ref, onUnmounted, watch } from 'vue';
 import { call } from '../services/api';
-import { statusLabels, paymentStatusLabels, showValue, showBoolean } from '../services/registration';
+import { registrationStageLabels, showValue, showBoolean } from '../services/registration';
 import PaymentStatus from './PaymentStatus.vue';
 import MaterialList from './MaterialList.vue';
 import MaterialPreview from './MaterialPreview.vue';
 const props = defineProps({ registration: Object, token: String, admin: Object });
 const emit = defineEmits(['close', 'saved', 'payment-saved']);
 const selected = computed(() => props.registration);
-const paymentStatusText = computed(() => paymentStatusLabels[props.registration.paymentStatus] || '未缴费');
 const canReviewPayment = computed(() => ['finance_pending', 'teacher_pending'].includes(props.registration.paymentStatus) && (props.admin?.role === 'super' || ['finance', 'financeStaff'].includes(props.admin?.position)));
 const paymentRemark = ref('');
 const paymentDecision = ref('approve');
+const rejectedProofIndices = ref([]);
+watch([() => props.registration.id, () => props.registration.revision, paymentDecision], () => {
+  rejectedProofIndices.value = [];
+});
 async function paymentReview(decision) {
   if (busy.value) return; busy.value = true; error.value = '';
-  try { await call('reviewPayment', { token: props.token, registrationId: selected.value.id, revision: selected.value.revision, decision, remark: paymentRemark.value }); emit('saved'); } catch (e) { error.value = e.message; } finally { busy.value = false; }
+  try { await call('reviewPayment', { token: props.token, registrationId: selected.value.id, revision: selected.value.revision, decision, rejectedProofIndices: rejectedProofIndices.value, remark: paymentRemark.value }); emit('saved'); } catch (e) { error.value = e.message; } finally { busy.value = false; }
 }
 const proofPreview = ref(null), openingProof = ref(false);
 let proofRequest = 0;
@@ -132,7 +135,6 @@ async function saveReview() {
           <span>专业<b>{{ showValue(selected.major) }}</b></span>
           <span>就读校区<b>{{ selected.studyCampus || '待定' }}</b></span>
           <span>考试类别<b>{{ selected.examCategory || '—' }}</b></span>
-          <span>报名状态<b>{{ statusLabels[selected.status] }}</b></span>
         </div>
       </section>
 
@@ -146,16 +148,18 @@ async function saveReview() {
           <span>报名来源<b>{{ selected.registrationSource || '未填写' }}</b></span>
           <span>介绍人<b>{{ selected.referrer || '未填写' }}</b></span>
         </div>
-        <p>缴费状态：
-          <PaymentStatus :status="selected.paymentStatus" />
+        <p>状态：
+          <PaymentStatus :status="selected.registrationStage" :label="registrationStageLabels[selected.registrationStage]" />
         </p>
         <p v-if="selected.paymentBreakdown">考试费：¥{{ selected.paymentBreakdown.exam }} · 高复教材资料费：¥{{ selected.paymentBreakdown.materials }} · 高复学费：¥{{ selected.paymentBreakdown.tuition }}</p>
         <p>实际缴费金额：{{ selected.actualPaidAmount == null ? '未填写' : '¥' + selected.actualPaidAmount }}</p>
         <p>{{ selected.paymentRemark }}</p>
         <h4>缴费记录（{{ selected.paymentProofs?.length || 0 }} 条）</h4>
         <p v-if="!selected.paymentProofs?.length" class="muted">暂无缴费记录</p>
-        <div v-for="entry in (canViewMaterials ? selected.paymentProofs : [])" :key="selected.id + '-' + entry.index" class="proof-actions">
-          <PaymentProofThumbnail :token="token" :registration-id="selected.id" :proof-index="entry.index" @open="proof('view', entry.index)" />
+
+        <div v-for="entry in (canViewMaterials ? selected.paymentProofs : [])" :key="selected.id + '-' + entry.index" class="proof-actions" :class="{ 'proof-rejected': entry.rejected }">
+          <PaymentProofThumbnail :token="token" :registration-id="selected.id" :proof-index="entry.index" :marked="entry.rejected || rejectedProofIndices.includes(entry.index)" @open="proof('view', entry.index)" />
+          <label v-if="canReviewPayment && paymentDecision === 'reject'"><input type="checkbox" v-model="rejectedProofIndices" :value="entry.index" :disabled="busy" /> 重传第 {{ entry.index + 1 }} 条</label>
           <span>缴费记录 {{ entry.index + 1 }} · {{ entry.fileName }}</span><span>{{ entry.paymentInfo ? '已核对金额：¥' + entry.paymentInfo.amount : '待核对金额：' + (entry.recognitionDraft?.amount ? '¥' + entry.recognitionDraft.amount : '未识别') }}</span>
           <div class="proof-buttons">
             <button v-if="openingProof" class="outline proof-loading" disabled>加载中…</button>
@@ -167,14 +171,16 @@ async function saveReview() {
           </div>
           <PaymentProofRecognition v-if="admin?.role === 'super' || admin?.permissions?.includes('registrations.edit')" :key="selected.id + '-ocr-' + entry.index + '-' + selected.revision" :token="token" :registration="selected" :entry="entry" @saved="emit('payment-saved')" />
         </div>
-        
+        <p v-if="canReviewPayment && paymentDecision === 'reject'" class="payment-reminder" role="note">提醒：请勾选需要重传的缴费记录。</p>
+
         <template v-if="canReviewPayment">
+
           <label>审核结果<select v-model="paymentDecision" :disabled="busy">
               <option value="approve">审核通过</option>
               <option value="reject">驳回重传</option>
             </select></label>
           <label>审核备注<textarea v-model="paymentRemark" maxlength="500" :disabled="busy" placeholder="驳回时请说明需要补充或修改的内容"></textarea></label>
-          <button class="primary" :disabled="busy" @click="paymentReview(paymentDecision)">{{ busy ? '保存中…' : '保存审核结果' }}</button>
+          <button class="primary" :disabled="busy || (paymentDecision === 'reject' && !rejectedProofIndices.length)" @click="paymentReview(paymentDecision)">{{ busy ? '保存中…' : '保存审核结果' }}</button>
         </template>
         <p v-if="error" class="error">{{ error }}</p>
       </section>
@@ -343,7 +349,42 @@ async function saveReview() {
   margin: 12px 0 16px
 }
 
-.info-payment > h4 {
+.proof-actions label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  cursor: pointer
+}
+
+.proof-actions input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: #d92d20;
+  cursor: pointer
+}
+
+.proof-actions.proof-rejected {
+  padding: 10px;
+  background: #fff2f0;
+  border-left: 3px solid #b42318;
+  border-radius: 4px;
+  color: #a32118;
+}
+
+.payment-reminder {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-left: 3px solid #d92d20;
+  border-radius: 6px;
+  background: #fff1f0;
+  color: #b42318;
+  font-size: 13px;
+  line-height: 1.5
+}
+
+.info-payment>h4 {
   padding-top: 12px;
   border-top: 1px solid #e3e8f1;
 }

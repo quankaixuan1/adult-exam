@@ -22,7 +22,7 @@ const documents=members.map((m,i)=>{
   if(existing.some(a=>a.username===username)) throw new Error(`Account exists: ${username}`);
   const passwordSalt=randomBytes(16).toString('hex');
   return {_id:createHash('sha256').update(`admin:${username}`).digest('hex'),username,displayName:m.name,memberId:m.id,role:'staff',disabled:false,
-    permissions:['registrations.view','registrations.create','registrations.edit','materials.view',...(m.position==='teacher'?[]:['registrations.review'])],schools:[],classIds:[],
+    permissions:['registrations.view','registrations.create','registrations.edit','materials.view','registrations.review'],schools:[],classIds:[],
     passwordSalt,passwordHash:scryptSync(initialPassword,passwordSalt,64).toString('hex'),sessionVersion:randomBytes(16).toString('hex'),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
 });
 run('admins','INSERT',{insert:'admins',documents,ordered:true});

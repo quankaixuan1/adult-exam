@@ -1,5 +1,6 @@
 <script setup>
 import { reactive, ref } from 'vue';
+import brandIcon from '../assets/brand-icon.png';
 defineProps({ mode: String, busy: Boolean, error: String, qr: Object, qrBusy: Boolean });
 const emit = defineEmits(['submit', 'wechat', 'cancel-wechat']);
 const forgot = ref(false);
@@ -10,8 +11,8 @@ function submit() { emit('submit', { ...authForm }); authForm.password = ''; aut
 <template>
 <main  class="auth-shell">
     <section class="auth-copy">
-      <div class="brand-mark">成</div>
-      <p class="eyebrow">2026 招生服务</p>
+      <img class="brand-mark logo" :src="brandIcon" alt="成人高考报名管理后台" />
+      <p class="eyebrow">2027 招生服务</p>
       <h1>成人高考报名<br />管理后台</h1>
       <!-- <p>集中查看报名信息、核对报名材料与招生计划。</p> -->
     </section>

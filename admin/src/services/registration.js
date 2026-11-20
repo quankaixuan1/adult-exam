@@ -25,3 +25,11 @@ export const paymentStatusLabels = {
   payment_rejected: "未通过",
   paid: "已缴费",
 };
+
+export const registrationStageLabels = {
+  registered: '已报名',
+  needs_changes: '待修改',
+  awaiting_payment: '待缴费',
+  finance_pending: '待审核',
+  paid: '已通过',
+};

@@ -24,10 +24,10 @@ async function submit() {
 </script>
 <template>
   <section class="account-card">
-    <h2>我的账号</h2>
-    <p v-if="account">{{ account.displayName }} · {{ account.username }}</p>
+    <h2>安全管理</h2>
+    <p v-if="account" class="account-identity">{{ account.displayName }} · {{ account.username }}</p>
     <template v-if="changed">
-      <p role="status">密码修改成功，原登录会话已失效，请使用新密码重新登录。</p>
+      <p class="success-message" role="status">密码修改成功，原登录会话已失效，请使用新密码重新登录。</p>
       <button class="primary" @click="emit('changed')">返回登录</button>
     </template>
     <form v-else @submit.prevent="submit">
@@ -42,7 +42,54 @@ async function submit() {
   </section>
 </template>
 <style scoped>
-.account-card { max-width: 560px; padding: 28px; background: white; border-radius: 12px; }
-form { display: grid; gap: 16px; }
-label { display: grid; gap: 8px; }
+.account-card {
+  width: 100%;
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid #e3e8f1;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(23, 35, 60, .04);
+}
+h2 {
+  margin: 0 0 18px;
+  font-size: 19px;
+  line-height: 1.4;
+}
+.account-identity {
+  margin: -6px 0 20px;
+  color: #71809c;
+  font-size: 13px;
+}
+form { display: grid; gap: 12px; }
+h3 { margin: 0; font-size: 15px; }
+form .muted { margin: -6px 0 2px; font-size: 13px; line-height: 1.6; }
+label { display: grid; gap: 7px; color: #43516b; font-size: 13px; font-weight: 700; }
+label input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid #d9e1ee;
+  border-radius: 9px;
+  background: #fff;
+  color: #17233c;
+  outline: none;
+}
+label input:focus {
+  border-color: #3974df;
+  box-shadow: 0 0 0 3px #3974df1c;
+}
+.account-card .primary { margin-top: 4px; }
+.success-message {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: #eef7f1;
+  color: #267345;
+  font-size: 14px;
+  line-height: 1.6;
+}
+@media (max-width: 520px) {
+  .account-card { padding: 20px; }
+}
 </style>

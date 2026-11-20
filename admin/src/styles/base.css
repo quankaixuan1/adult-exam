@@ -80,6 +80,18 @@ small {
   font-size: 19px
 }
 
+.brand-mark.logo {
+  display: block;
+  width: 100px;
+  height: 80px;
+  margin-bottom: 20px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  object-fit: contain
+}
+
 .auth-card label,
 .modal label {
   display: block;

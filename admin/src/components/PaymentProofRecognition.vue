@@ -2,16 +2,23 @@
 import { reactive, ref } from 'vue';
 import { call } from '../services/api';
 import { ChevronDown } from 'lucide-vue-next';
-const props = defineProps({ token: String, registration: Object, entry: Object });
-const emit = defineEmits(['saved']);
+const props = defineProps({ token: String, registration: Object, entry: Object, staged: Boolean });
+const emit = defineEmits(['saved', 'change']);
 const info = props.entry.paymentInfo;
 const draft = props.entry.recognitionDraft || {};
 const localTime = value => value ? new Date(Date.parse(value) + 8 * 3600000).toISOString().slice(0, 19) : '';
 const form = reactive({ paidAt: info ? localTime(info.paidAt) : draft.paidAt || '', amount: info?.amount ?? draft.amount ?? '', transactionNo: info?.transactionNo || draft.transactionNo || '', channel: info?.channel || draft.channel || '' });
 const busy = ref(false), error = ref(''), warning = ref(draft.warning || ''), confirmed = ref(false), collapsed = ref(!!info);
+function changed() {
+  if (props.staged) emit('change', { ...form, confirmed: confirmed.value });
+}
+function invalidate() {
+  confirmed.value = false;
+  changed();
+}
 async function scan() {
-  busy.value = true; error.value = ''; confirmed.value = false;
-  try { const result = await call('recognizePaymentProof', { token: props.token, registrationId: props.registration.id, proofIndex: props.entry.index }); Object.assign(form, result); warning.value = result.warning; }
+  busy.value = true; error.value = ''; invalidate();
+  try { const result = await call('recognizePaymentProof', { token: props.token, ...(props.entry.base64 ? { base64: props.entry.base64 } : { registrationId: props.registration.id, proofIndex: props.entry.index }) }); Object.assign(form, result); warning.value = result.warning; changed(); }
   catch (e) { error.value = e.message; } finally { busy.value = false; }
 }
 async function save() {
@@ -32,10 +39,10 @@ async function save() {
       <p v-if="warning" class="muted">{{ warning }}</p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <div class="fields">
-        <label>实际付款时间（北京时间）<input v-model="form.paidAt" type="datetime-local" step="1" :disabled="busy" @input="confirmed = false"></label>
-        <label>本张凭证金额（元）<input v-model="form.amount" type="number" min="0.01" step="0.01" :disabled="busy" @input="confirmed = false"></label>
-        <label>交易单号（选填）<input v-model.trim="form.transactionNo" maxlength="80" :disabled="busy" @input="confirmed = false"></label>
-        <label>支付渠道<select v-model="form.channel" :disabled="busy" @change="confirmed = false">
+        <label>实际付款时间（北京时间）<input v-model="form.paidAt" type="datetime-local" step="1" :disabled="busy" @input="invalidate"></label>
+        <label>本张凭证金额（元）<input v-model="form.amount" type="number" min="0.01" step="0.01" :disabled="busy" @input="invalidate"></label>
+        <label>交易单号（选填）<input v-model.trim="form.transactionNo" maxlength="80" :disabled="busy" @input="invalidate"></label>
+        <label>支付渠道<select v-model="form.channel" :disabled="busy" @change="invalidate">
             <option value="">未识别</option>
             <option>微信</option>
             <option>支付宝</option>
@@ -43,8 +50,9 @@ async function save() {
             <option>其他</option>
           </select></label>
       </div>
-      <label class="confirmation-checkbox"><input v-model="confirmed" type="checkbox" :disabled="busy">我已对照原图核对时间和金额</label>
-      <button type="button" class="primary" :disabled="busy || !confirmed" @click="save">确认保存付款信息</button>
+      <label class="confirmation-checkbox"><input v-model="confirmed" @change="changed" type="checkbox" :disabled="busy">我已对照原图核对时间和金额</label>
+      <small v-if="staged">勾选后随报名信息一起保存。</small>
+      <button v-else type="button" class="primary" :disabled="busy || !confirmed" @click="save">确认保存付款信息</button>
       <small>此操作只保存凭证信息，不增加累计实收金额，也不代替财务审核。</small>
     </div>
   </section>

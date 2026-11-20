@@ -1,3 +1,4 @@
+const confirmedPaymentInfo = require('./confirmed-payment-info');
 const { allocateStudentNumber, registrationYear } = require('./student-number');
 const { paymentChanged } = require('./payment-change');
 const registrationSchema = require('./registration-schema.json');
@@ -124,6 +125,24 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
       const uploads = data.paymentProofUploads ?? (data.paymentProofUpload ? [data.paymentProofUpload] : []);
       if (!Array.isArray(uploads) || uploads.length > 5 || uploads.reduce((n, p) => n + (typeof p?.base64 === 'string' ? p.base64.length : 0), 0) > 2800000) fail('每次最多5张凭证，总大小不超过2MB');
       const proofs = [...(current?.paymentProofs || (current?.materials?.paymentProof ? [current.materials.paymentProof] : []))];
+      const updates = data.paymentProofUpdates ?? [];
+      if (!Array.isArray(updates)) fail('凭证核对信息无效');
+      const checkedUploads = uploads.map(proof => proof?.confirmation);
+      const hasConfirmations = updates.length > 0 || checkedUploads.some(Boolean);
+      if (hasConfirmations) {
+        requirePermission(admin, 'materials.view');
+        requirePermission(admin, 'registrations.edit');
+      }
+      for (const update of updates) {
+        if (!Number.isSafeInteger(update?.index) || !proofs[update.index]) fail('凭证已变化，请重新打开');
+        proofs[update.index] = { ...proofs[update.index], paymentInfo: confirmedPaymentInfo(update, admin._id, updatedAt, fail) };
+      }
+      const newPaymentInfo = checkedUploads.map(info => info && confirmedPaymentInfo(info, admin._id, updatedAt, fail));
+      if (hasConfirmations) {
+        const numbers = [...proofs.map(p => p.paymentInfo), ...newPaymentInfo].map(info => info?.transactionNo).filter(Boolean);
+        if (new Set(numbers).size !== numbers.length) fail('交易单号重复，请核对缴费凭证');
+      }
+      const addedProofs = [];
       for (const proof of uploads) {
         if (typeof proof.base64 !== 'string' || proof.base64.length > 2800000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(proof.base64)) fail('凭证图片无效或超过2MB');
         const bytes = Buffer.from(proof.base64, 'base64');
@@ -133,8 +152,9 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
         const uploaded = await cloud.uploadFile({ cloudPath: `student-materials/${id}/paymentProof/${randomBytes(16).toString('hex')}.${png ? 'png' : 'jpg'}`, fileContent: bytes });
         uploadedFileIds.push(uploaded.fileID);
         fields.materials = { ...current?.materials, paymentProof: { fileId: uploaded.fileID, fileName: text(proof.fileName, 120, '文件名'), size: bytes.length, uploadedAt: updatedAt, uploadedBy: admin._id, status: 'pending' } };
+        addedProofs.push({ ...fields.materials.paymentProof, recognitionDraft: Object.fromEntries(['paidAt', 'amount', 'transactionNo', 'channel', 'warning'].map(key => [key, String(proof.recognitionDraft?.[key] || '').slice(0, 200)])), ...(newPaymentInfo[addedProofs.length] ? { paymentInfo: newPaymentInfo[addedProofs.length] } : {}) });
       }
-      if (uploads.length) fields.paymentProofs = [...proofs, ...uploadedFileIds.map((fileId, index) => ({ fileId, fileName: text(uploads[index].fileName, 120, '文件名'), recognitionDraft: Object.fromEntries(['paidAt', 'amount', 'transactionNo', 'channel', 'warning'].map(key => [key, String(uploads[index].recognitionDraft?.[key] || '').slice(0, 200)])), uploadedAt: updatedAt, uploadedBy: admin._id }))];
+      if (uploads.length || updates.length) fields.paymentProofs = [...proofs, ...addedProofs];
       const next = { ...fields, updatedAt, revision: (current?.revision || 0) + 1 };
       if (creating) Object.assign(next, { source: 'admin', createdBy: admin._id, createdAt: updatedAt, status: 'pending', paymentStatus: 'pending', materials: fields.materials || {} });
       // 仅调整归属不撤销审核；资料变动后重新待审核。

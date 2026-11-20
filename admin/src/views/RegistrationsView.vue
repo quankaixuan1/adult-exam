@@ -20,6 +20,9 @@ const search = ref(''), keyword = ref(''), selected = ref(null);
 const startDate = ref('');
 const endDate = ref('');
 const selectedRowId = ref('');
+function toggleProgress(registrationId) {
+  selectedRowId.value = selectedRowId.value === registrationId ? '' : registrationId;
+}
 const normalStages = ['registered', 'awaiting_payment', 'finance_pending', 'paid'];
 function progressStages(item) {
   if (item.registrationStage !== 'needs_changes' || item.status === 'rejected') return normalStages;
@@ -320,7 +323,7 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
           </thead>
           <tbody>
             <template v-for="item in rows" :key="item.id">
-            <tr :class="{ 'selected-row': selectedRowId === item.id }" :aria-selected="selectedRowId === item.id" tabindex="0" @click="selectedRowId = item.id" @keydown.enter.self="selectedRowId = item.id" @keydown.space.self.prevent="selectedRowId = item.id">
+            <tr :class="{ 'selected-row': selectedRowId === item.id }" :aria-selected="selectedRowId === item.id" tabindex="0" @click="toggleProgress(item.id)" @keydown.enter.self="toggleProgress(item.id)" @keydown.space.self.prevent="toggleProgress(item.id)">
               <td>
                 <PaymentStatus :status="item.registrationStage" :label="registrationStageLabels[item.registrationStage]" />
               </td>
@@ -339,7 +342,7 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
               <!-- <td>{{ materialCount(item) }} / 4 项</td> -->
               <td><time class="submission-date" :datetime="item.createdAt" :title="new Date(item.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })">{{ new Date(item.createdAt).toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' }) }}</time></td>
 
-              <td class="row-actions"><button class="link-button" @click="openReview(item)">查看详情</button><button v-if="canEdit" class="link-button" @click="editRegistration(item)">修改</button><button v-if="canDelete" class="link-button delete-button" :disabled="deleting" @click="deleteRegistration(item)">删除</button></td>
+              <td class="row-actions" @click.stop><button class="link-button" @click="openReview(item)">查看详情</button><button v-if="canEdit" class="link-button" @click="editRegistration(item)">修改</button><button v-if="canDelete" class="link-button delete-button" :disabled="deleting" @click="deleteRegistration(item)">删除</button></td>
             </tr>
             <tr v-if="selectedRowId === item.id" class="student-progress">
               <td colspan="11">
@@ -364,7 +367,7 @@ defineExpose({ refresh: () => loadDashboard(data.page), openRegistration });
     </section>
     <p v-if="error" class="error banner">{{ error }}</p>
     <RegistrationDetail v-if="selected" :registration="selected" :token="token" :admin="data.admin || admin" @close="selected = null" @saved="selected = null; loadDashboard(data.page)" @payment-saved="refreshPaymentDetails" />
-    <RegistrationEditor v-if="editing" :registration="editRecord" :token="token" @close="editing = false" @saved="savedRegistration" />
+    <RegistrationEditor v-if="editing" :can-confirm="data.admin?.role === 'super' || (data.admin?.permissions?.includes('materials.view') && data.admin?.permissions?.includes('registrations.edit'))" :registration="editRecord" :token="token" @close="editing = false" @saved="savedRegistration" />
     <div ref="floatingTableScroll" class="floating-table-scroll" :style="floatingTableScrollStyle" role="region" tabindex="0" aria-label="报名表横向滚动" @scroll="handleFloatingTableScroll">
       <div :style="{ width: `${floatingTableScrollWidth}px` }"></div>
     </div>

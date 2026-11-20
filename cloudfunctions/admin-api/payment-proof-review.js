@@ -1,7 +1,5 @@
-const {
-  recognize,
-  validateTime
-} = require('./payment-ocr');
+const confirmedPaymentInfo = require('./confirmed-payment-info');
+const { recognize } = require('./payment-ocr');
 module.exports = ({
   db,
   cloud,
@@ -42,16 +40,6 @@ module.exports = ({
       fail(e.message);
     }
   }
-  let paidAt;
-  try {
-    paidAt = validateTime(data.paidAt);
-  } catch (e) {
-    fail(e.message);
-  }
-  if (data.confirmed !== true) fail('请核对原图后确认');
-  if (!/^\d{1,8}(\.\d{1,2})?$/.test(String(data.amount)) || Number(data.amount) <= 0) fail('请填写有效的付款金额');
-  if (typeof data.transactionNo !== 'string' || data.transactionNo.length > 80 || !/^[A-Za-z0-9]*$/.test(data.transactionNo)) fail('交易单号格式无效');
-  if (!['', '微信', '支付宝', '银行转账', '其他'].includes(data.channel)) fail('支付渠道无效');
   await withTransaction(db, async tx => {
     const current = (await tx.collection('registrations').doc(data.registrationId).get()).data;
     if (!current || !canAccess(admin, current)) throw new ApiError('无权操作该记录', 'FORBIDDEN');
@@ -62,14 +50,7 @@ module.exports = ({
     if (proofs[data.proofIndex]?.fileId !== proof.fileId) fail('凭证已变化，请重新打开');
     if (data.transactionNo && proofs.some((p, i) => i !== data.proofIndex && p.paymentInfo?.transactionNo === data.transactionNo)) fail('此交易单号已在其他凭证中确认，请勿重复记录');
     const now = new Date().toISOString();
-    proofs[data.proofIndex].paymentInfo = {
-      paidAt,
-      amount: Number(data.amount),
-      transactionNo: data.transactionNo,
-      channel: data.channel,
-      confirmedBy: admin._id,
-      confirmedAt: now
-    };
+    proofs[data.proofIndex].paymentInfo = confirmedPaymentInfo(data, admin._id, now, fail);
     await tx.collection('registrations').doc(data.registrationId).update({
       data: {
         paymentProofs: proofs,

@@ -1,12 +1,22 @@
 <script setup>
+import PaymentProofRecognition from './PaymentProofRecognition.vue';
+import PaymentProofThumbnail from './PaymentProofThumbnail.vue';
+import MaterialPreview from './MaterialPreview.vue';
 import { preparePaymentProof } from "../services/payment-proof-image";
 import { computed, onMounted, reactive, ref, nextTick, watch } from 'vue';
 import { validateIdNumber } from '../services/id-number';
 import { call } from '../services/api';
 import registrationSchema from '../services/registration-schema.json';
 const selectOptions = { education: registrationSchema.educationOptions, politicalStatus: registrationSchema.politicalOptions };
-const props = defineProps({ registration: Object, token: String });
+const props = defineProps({ registration: Object, token: String, canConfirm: Boolean });
 const emit = defineEmits(['close', 'saved']);
+const preview = ref(null);
+const proofUpdates = reactive({});
+let nextUploadKey = 0;
+function updateUpload(upload, info) {
+  Object.assign(upload.recognitionDraft, info);
+  upload.confirmation = info.confirmed ? info : null;
+}
 const recognitionMessage = ref('');
 const busy = ref(false), loading = ref(true), error = ref('');
 const options = reactive({ campuses: [], members: [], programs: [], canAssign: false, memberId: '' });
@@ -116,22 +126,45 @@ async function chooseProof(event) {
       const upload = await preparePaymentProof(file);
       recognitionMessage.value = `正在识别 ${file.name} 的付款金额和时间…`;
       try { upload.recognitionDraft = await call('recognizePaymentProof', { token: props.token, base64: upload.base64 }, { loading: false }); }
-      catch (e) { upload.recognitionDraft = { warning: e.message || '识别失败，保存后可手动填写金额' }; }
+      catch (e) { upload.recognitionDraft = { warning: e.message || '识别失败，可手动填写金额' }; }
+      upload.localKey = ++nextUploadKey;
       uploads.push(upload);
     }
     form.paymentProofUploads = [...previous, ...uploads];
-    recognitionMessage.value = `已添加 ${form.paymentProofUploads.length} 条缴费记录；保存后请逐条核对付款时间和金额。`;
+    recognitionMessage.value = `已添加 ${form.paymentProofUploads.length} 条缴费记录；可以逐条核对付款时间和金额。`;
     error.value = '';
   } catch (e) { error.value = e.message; }
   finally { busy.value = false; }
 }
+async function deletePaymentProof(entry) {
+  if (!props.registration || busy.value || !window.confirm('确定删除这张缴费凭证吗？删除后需重新核验缴费；删除全部凭证后将显示未缴费。')) return;
+  busy.value = true;
+  error.value = '';
+  try {
+    await call('deletePaymentProof', {
+      token: props.token,
+      registrationId: props.registration.id,
+      revision: props.registration.revision,
+      proofIndex: entry.index
+    });
+    emit('saved');
+  } catch (e) {
+    error.value = e.message || '删除缴费凭证失败';
+  } finally {
+    busy.value = false;
+  }
+}
 async function save() {
   if (busy.value || loading.value) return;
+  if (Object.values(proofUpdates).some(info => !info.confirmed)) {
+    error.value = '已修改历史凭证的付款信息，请对照原图核对并勾选确认后保存';
+    return;
+  }
   attempted.value = true;
   if (!validateFields()) { error.value = '请检查标红的项目后再保存'; await focusError(); return; }
   busy.value = true; error.value = '';
   try {
-    await call('saveRegistration', { ...form, ...(hasBreakdown.value ? { paymentBreakdown: Object.fromEntries(feeParts.map(([key]) => [key, breakdown[key]])) } : {}), token: props.token, registrationId: props.registration?.id, revision: props.registration?.revision });
+    await call('saveRegistration', { ...form, paymentProofUpdates: Object.entries(proofUpdates).filter(([, info]) => info.confirmed).map(([index, info]) => ({ ...info, index: Number(index) })), ...(hasBreakdown.value ? { paymentBreakdown: Object.fromEntries(feeParts.map(([key]) => [key, breakdown[key]])) } : {}), token: props.token, registrationId: props.registration?.id, revision: props.registration?.revision });
     emit('saved');
   } catch (e) {
     error.value = e.message;
@@ -226,7 +259,27 @@ async function save() {
               <div class="fee-summary">
                 <div class="fee-summary-label">考前实际缴费合计：{{ hasBreakdown ? '¥' + paidTotal : form.actualPaidAmount == null || form.actualPaidAmount === '' ? '未填写' : '¥' + form.actualPaidAmount + '（历史总额，待补明细）' }}</div><button type="button" class="outline" :disabled="!form.level" @click="standardFees">按层次填入标准费用</button>
               </div>
-              <p v-if="recognitionMessage" role="status">{{ recognitionMessage }}</p><div v-for="(upload,index) in form.paymentProofUploads || []" :key="index" class="payment-proof-upload"><img :src="'data:image/jpeg;base64,' + upload.base64" alt="待上传缴费凭证" style="width:80px;height:100px;object-fit:contain" /><strong>缴费记录 {{ index + 1 }} · {{ upload.fileName }}</strong><button type="button" class="outline" :disabled="busy" @click="form.paymentProofUploads.splice(index, 1)">删除此凭证</button><p>{{ upload.recognitionDraft?.paidAt || '时间未识别' }} · {{ upload.recognitionDraft?.amount ? '¥' + upload.recognitionDraft.amount : '金额未识别' }}</p><small>{{ upload.recognitionDraft?.warning }}</small></div><label class="payment-proof-field"><span>上传缴费凭证</span><input type="file" multiple accept="image/jpeg,image/png" @change="chooseProof" :aria-invalid="!!fieldErrors.paymentProofUpload" /><small>可多选或连续追加图片，每张图片为一条缴费记录。自动压缩并识别金额，每次保存最多追加5张，历史记录保留。</small><small v-if="fieldErrors.paymentProofUpload" class="field-error">{{ fieldErrors.paymentProofUpload }}</small></label>
+              <div class="proof-records">
+                <h4>缴费记录（{{ (registration?.paymentProofs?.length || 0) + (form.paymentProofUploads?.length || 0) }} 条）</h4>
+                <p v-if="recognitionMessage" role="status">{{ recognitionMessage }}</p>
+                <article v-for="entry in registration?.paymentProofs" :key="entry.index" class="payment-proof-upload">
+                  <strong>缴费记录 {{ entry.index + 1 }} · {{ entry.fileName }}</strong>
+                  <template v-if="canConfirm">
+                    <PaymentProofThumbnail :token="token" :registration-id="registration.id" :proof-index="entry.index" :marked="entry.rejected" @open="url => preview = { url, name: entry.fileName, type: 'image' }" />
+                    <button type="button" class="outline proof-delete" :disabled="busy" @click="deletePaymentProof(entry)">{{ busy ? '删除中…' : '删除此凭证' }}</button>
+                    <PaymentProofRecognition staged :token="token" :registration="registration" :entry="entry" @change="info => proofUpdates[entry.index] = info" />
+                  </template>
+                </article>
+                <article v-for="(upload,index) in form.paymentProofUploads" :key="'upload-' + upload.localKey" class="payment-proof-upload">
+                  <strong>缴费记录 {{ (registration?.paymentProofs?.length || 0) + index + 1 }} · {{ upload.fileName }}</strong>
+                  <button type="button" class="outline" @click="preview = { url: 'data:image/jpeg;base64,' + upload.base64, name: upload.fileName, type: 'image' }">
+                    <img :src="'data:image/jpeg;base64,' + upload.base64" alt="放大查看待上传凭证" width="80" height="100" style="object-fit:contain">
+                  </button>
+                  <button type="button" class="outline" :disabled="busy" @click="form.paymentProofUploads.splice(index, 1)">删除此凭证</button>
+                  <PaymentProofRecognition v-if="canConfirm" staged :token="token" :entry="upload" @change="info => updateUpload(upload, info)" />
+                </article>
+              </div>
+              <label class="payment-proof-field"><span>上传缴费凭证</span><input type="file" multiple accept="image/jpeg,image/png" @change="chooseProof" :aria-invalid="!!fieldErrors.paymentProofUpload" /><small>可多选或连续追加图片，每张图片为一条缴费记录。自动压缩并识别金额，每次保存最多追加5张，历史记录保留。</small><small v-if="fieldErrors.paymentProofUpload" class="field-error">{{ fieldErrors.paymentProofUpload }}</small></label>
             </div>
           </section>
           <label class="note-field">备注<textarea v-model.trim="form.note" maxlength="1000" rows="3" placeholder="选填，最多1000字" :aria-invalid="!!fieldErrors.note"></textarea><small v-if="fieldErrors.note" class="field-error">{{ fieldErrors.note }}</small></label>
@@ -240,10 +293,18 @@ async function save() {
           </div>
         </fieldset>
       </form>
+      <MaterialPreview v-if="preview" :preview="preview" @close="preview = null" />
     </section>
   </div>
 </template>
 <style scoped>
+.proof-records { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.proof-records > h4,
+.proof-records > p { grid-column: 1 / -1; }
+.proof-records article { grid-column: auto; display: grid; justify-items: start; align-content: start; gap: 8px; min-width: 0; }
+.proof-records :deep(.recognition) { box-sizing: border-box; }
+.proof-records .proof-delete { color: #b42318; }
+
 .info-section {
   margin: 18px 0;
   padding: 18px;
@@ -405,6 +466,10 @@ fieldset {
 
 @media(max-width:650px) {
   .editor-grid {
+    grid-template-columns: 1fr
+  }
+
+  .proof-records {
     grid-template-columns: 1fr
   }
 }

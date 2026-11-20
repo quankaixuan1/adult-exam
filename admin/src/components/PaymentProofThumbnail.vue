@@ -22,7 +22,7 @@ watch(() => [props.token, props.registrationId, props.proofIndex, retry.value], 
 }, { immediate: true });
 </script>
 <template>
-  <button type="button" class="proof-thumbnail" :class="{ marked }" :disabled="loading" :aria-label="(marked ? '需重传，' : '') + (error || '放大查看缴费凭证')" @click="error ? retry++ : emit('open')">
+  <button type="button" class="proof-thumbnail" :class="{ marked }" :disabled="loading" :aria-label="(marked ? '需重传，' : '') + (error || '放大查看缴费凭证')" @click="error ? retry++ : emit('open', url)">
     <span v-if="loading">加载中…</span>
     <span v-else-if="error">{{ error }}</span>
     <img v-else-if="url" :src="url" alt="缴费凭证缩略图，点击放大" @error="error = '缩略图加载失败，点击重试'" />

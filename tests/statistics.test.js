@@ -9,6 +9,17 @@ const rows = [
 test('registration dates use China day boundaries',()=> {
  assert.equal(summarize(rows,{start:'2026-11-01',end:'2026-11-01'}).total,2);
 });
+test('registration distributions compare selected subtotal period with academic-year totals',()=> {
+ const records = [
+  { _id:'a', createdAt:'2026-10-31T16:00:00Z', campus:'文一校区', school:'学校一', level:'高起专', teacherName:'老师甲', registrationSource:'新生' },
+  { _id:'b', createdAt:'2026-11-10T00:00:00Z', campus:'文一校区', school:'学校一', level:'高起专', teacherName:'老师甲', registrationSource:'续报' },
+  { _id:'c', createdAt:'2026-09-14T15:59:00Z', campus:'城西校区', school:'学校二', level:'专升本', teacherName:'老师乙', registrationSource:'新生' },
+ ];
+ const result = summarize(records, { start:'2026-11-01', end:'2026-11-07', academicStart:'2026-09-15', academicEnd:'2027-09-14' });
+ assert.deepEqual(result.registrationGroups.campus.subtotal, [{ label:'文一校区', count:1 }]);
+ assert.deepEqual(result.registrationGroups.campus.academicYear, [{ label:'文一校区', count:2 }]);
+ assert.deepEqual(Object.fromEntries(result.registrationGroups.registrationSource.academicYear.map(item => [item.label, item.count])), { '续报':1, '新生':1 });
+});
 test('payment filters use confirmation date, category and school',()=> {
  const r=summarize(rows,{mode:'payments',start:'2026-12-01',end:'2026-12-01',school:'学校一',category:'exam'});
  assert.equal(r.total,1); assert.equal(r.amount,10000); assert.equal(r.confirmedCount,1);

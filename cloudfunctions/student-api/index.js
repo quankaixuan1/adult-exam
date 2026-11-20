@@ -1,4 +1,4 @@
-const { allocateStudentNumber } = require('./student-number');
+const { allocateStudentNumber, registrationYear } = require('./student-number');
 const registrationSchema = require('./registration-schema.json');
 const cloud = require('wx-server-sdk');
 const { validateIdNumber } = require('./id-number');
@@ -340,7 +340,8 @@ async function handle(action, data, openId) {
     const now = isoNow();
     const registration = { _id: student._id, studentId: student._id, ...clean, status: 'pending', paymentStatus: 'pending', revision: 1, consentVersion: 'cloud-v1', createdAt: now, updatedAt: now };
     await withTransaction(db, async transaction => {
-      registration.studentNo = await allocateStudentNumber(db, transaction, registration.campus);
+      registration.registrationYear = registrationYear(registration.createdAt);
+      registration.studentNo = await allocateStudentNumber(db, transaction, registration.campus, registration.createdAt);
       await transaction.collection('registrations').add({ data: registration });
       await addNotification(transaction, {
         type: 'registration_completed', audience: 'admin', registrationId: student._id,

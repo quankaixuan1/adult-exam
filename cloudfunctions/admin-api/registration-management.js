@@ -1,4 +1,4 @@
-const { allocateStudentNumber } = require('./student-number');
+const { allocateStudentNumber, registrationYear } = require('./student-number');
 const { paymentChanged } = require('./payment-change');
 const registrationSchema = require('./registration-schema.json');
 const programs = require('./programs');
@@ -142,7 +142,8 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
       if (uploads.length || paymentChanged(current, fields)) {
         Object.assign(next, { paymentStatus: 'finance_pending', paymentRemark: '', paymentFinanceId: '', paymentFinanceReviewedAt: '' });
       }
-      if (!current?.studentNo) next.studentNo = await allocateStudentNumber(db, transaction, fields.campus);
+      if (creating) next.registrationYear = registrationYear(next.createdAt);
+      if (!current?.studentNo) next.studentNo = await allocateStudentNumber(db, transaction, fields.campus, current?.createdAt || next.createdAt);
       if (creating) await transaction.collection('registrations').doc(id).set({ data: next });
       else await transaction.collection('registrations').doc(id).update({ data: next });
       await transaction.collection('audit_logs').doc(`registration-edit-${id}-${next.revision}`).set({ data: {
@@ -165,7 +166,7 @@ module.exports = function ({ db, cloud, ApiError, requirePermission, scopedRegis
     let offset = 0;
     while (true) {
       const page = await db.collection('registrations').where(scope(admin)).field({
-        name: true, school: true, campus: true, teacherId: true, teacherName: true, level: true,
+        name: true, school: true, campus: true, teacherId: true, teacherName: true, level: true, registrationSource: true,
         createdAt: true, status: true, paymentStatus: true, paymentFinanceReviewedAt: true,
         actualPaidAmount: true, paymentBreakdown: true, paymentProofs: true
       }).orderBy('_id', 'asc').skip(offset).limit(100).get();
